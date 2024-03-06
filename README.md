@@ -12,6 +12,8 @@ For instance, the module can be combined with the [Field Segmentation Module](ht
 All these tasks are relevant for use case *B.1 Yield prediction for agricultural decision making* and *B.2 Food security through Early Warnings*. 
 Therefore, time series extraction can play a crucial role in the quality and scalability of the final workflows for these use cases
 
+|  |  |
+| --- | --- |
 | Context in project: | WP3 Task 3.3: Spatio-temporal data alignment |
 | Relevant other tools: | [Field Segmentation Module](https://github.com/stelar-eu/spatiotemporal_timeseries_extraction), [Data Imputation Module](TODO:LINK) |
 | Relevant use cases: | B.1 Yield prediction for agricultural decision making, B.2 Food security through Early Warnings |
