@@ -1,4 +1,4 @@
-# WP3 Task 3.3 - Spatio-Temporal Time Series Extraction Module
+# Spatio-Temporal Time Series Extraction Module
 ## Description
 Spatio-Temporal time series extraction module, as part of STELAR Work Package 3 (WP3), Task 3.3: Spatio-temporal data alignment.
 This module takes as input a series of satellite images with crop/soil statistics such as the Leaf Area Index (LAI), and outputs a time series of statistics for each pixel in the image. The time series can later be used as input for a classification or prediction model, or for further (pre-)processing modules such as missing value imputation.
