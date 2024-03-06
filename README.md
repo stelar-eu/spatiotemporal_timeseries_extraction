@@ -75,7 +75,15 @@ The CSV file will therefore have the following structure:
 | ...      | ...         | ...         | ...         | ... |
 
 ## Metrics
-TODO: Describe the metrics that are used to evaluate the performance of the module?
+The module outputs the following metrics about the run as metadata:
+1. *start_time*: The start time of the run.
+2. *end_time*: The end time of the run.
+3. *duration*: The duration of the run in seconds.
+4. *status*: The status of the run, which can be either "success" or "failure".
+5. *error_message*: The error message in case the run failed.
+6. *n_pixels*: The number of pixels in the image.
+7. *n_fields*: The number of fields in the shapefile.
+8. *n_timestamps*: The number of timestamps in the images.
 
 ## Installation & Example Usage
 The module can be installed either by (1) cloning the repository and building the Docker image, or (2) by pulling the image from DockerHub.
