@@ -17,6 +17,7 @@ Therefore, time series extraction can play a crucial role in the quality and sca
 | Context in project: | WP3 Task 3.3: Spatio-temporal data alignment |
 | Relevant other tools: | [Field Segmentation Module](https://github.com/stelar-eu/field_segmentation), [Data Imputation Module](TODO:LINK) |
 | Relevant use cases: | B.1 Yield prediction for agricultural decision making, B.2 Food security through Early Warnings |
+| Report: | Deliverable 3.2 Spatio-temporal data alignment and correlations |
 
 ## Input format
 The module takes as input the following:
@@ -27,7 +28,7 @@ The module takes as input the following:
     ├── image1.RHD
     ├── image2.RAS
     └── image2.RHD
-    ``` -->
+    ```
 RAS files are compressed binary files containing the LAI values (or any other crop/land statistic) of satellite images. Each RAS file should have an accompanying header file (.RHD), which contains the metadata of the RAS file such as the bounding box, the coordinate reference system and the timestamps of the images. Based on the header files, the script first checks if the RAS files are aligned, i.e., if they have the same bounding box, coordinate reference system and timestamps. If the RAS files are not aligned, the script will raise an error.
 **Note**: The input path can be either a local path or a path to a folder in a MinIO object storage. In the latter case, the path should start with `s3://` followed by the MinIO server address and the bucket name, e.g., `s3://localhost:9000/mybucket/input_dir`. Also, the MinIO access key and secret key should be passed as arguments (see below).
 
@@ -89,7 +90,7 @@ The module outputs the following metrics about the run as metadata:
 The module can be installed either by (1) cloning the repository and building the Docker image, or (2) by pulling the image from DockerHub.
 Cloning the repository and building the Docker image:
 ```bash
-git clone https://github.com/stelar-eu/spatiotemporal_timeseries_extraction
+git clone https://github.com/stelar-eu/spatiotemporal_timeseries_extraction.git
 cd spatiotemporal_timeseries_extraction
 docker build -t alexdarancio7/stelar_image2ts:latest .
 ```
