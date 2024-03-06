@@ -15,7 +15,7 @@ Therefore, time series extraction can play a crucial role in the quality and sca
 |  |  |
 | --- | --- |
 | Context in project: | WP3 Task 3.3: Spatio-temporal data alignment |
-| Relevant other tools: | [Field Segmentation Module](https://github.com/stelar-eu/spatiotemporal_timeseries_extraction), [Data Imputation Module](TODO:LINK) |
+| Relevant other tools: | [Field Segmentation Module](https://github.com/stelar-eu/field_segmentation), [Data Imputation Module](TODO:LINK) |
 | Relevant use cases: | B.1 Yield prediction for agricultural decision making, B.2 Food security through Early Warnings |
 
 ## Input format
