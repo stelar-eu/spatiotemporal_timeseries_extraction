@@ -30,10 +30,10 @@ The module takes as input the following:
     └── image2.RHD
     ```
 RAS files are compressed binary files containing the LAI values (or any other crop/land statistic) of satellite images. Each RAS file should have an accompanying header file (.RHD), which contains the metadata of the RAS file such as the bounding box, the coordinate reference system and the timestamps of the images. Based on the header files, the script first checks if the RAS files are aligned, i.e., if they have the same bounding box, coordinate reference system and timestamps. If the RAS files are not aligned, the script will raise an error.
-**Note**: The input path can be either a local path or a path to a folder in a MinIO object storage. In the latter case, the path should start with `s3://` followed by the MinIO server address and the bucket name, e.g., `s3://localhost:9000/mybucket/input_dir`. Also, the MinIO access key and secret key should be passed as arguments (see below).
+**Note**: The input path can be either a local path or a path to a folder in a MinIO object storage. In the latter case, the path should start with `s3://` followed by the bucket name, e.g., `s3://mybucket/input_dir`. Also, the MinIO access key, secret key and endpoint url should be passed as arguments (see below).
 
 2. *output_path* (required): Path to the folder where the output files will be saved. 
-**Note**: The output path can be either a local path or a path to a folder in a MinIO object storage. In the latter case, the path should start with `s3://` followed by the MinIO server address and the bucket name, e.g., `s3://localhost:9000/mybucket/output_dir`. Also, the MinIO access key and secret key should be passed as arguments (see below).
+**Note**: The output path can be either a local path or a path to a folder in a MinIO object storage. In the latter case, the path should start with `s3://` followed by the bucket name, e.g., `s3://mybucket/output_dir`. Also, the MinIO access key, secret key and endpoint url should be passed as arguments (see below).
 
 3. *field_path* (optional): Path to the shapefile containing the boundaries of the agricultural fields. The shapefile can be one of the following formats: .shp, .gpkg. If this argument is not provided, the script will skip extracting the time series of the fields and only extract the time series of the pixels.
 
@@ -43,37 +43,34 @@ RAS files are compressed binary files containing the LAI values (or any other cr
 
 6. *MINIO_SECRET_KEY* (optional): Secret key of the MinIO server. Required if the input or output path is in a MinIO object storage.
 
+7. *MINIO_ENDPOINT_URL* (optional): Endpoint URL of the MinIO server. Required if the input or output path is in a MinIO object storage.
+
 ## Output format
 The module outputs the following:
-1. *Pixel Time Series*: A folder containing (potentially multiple) CSV files with the time series of a set of pixels, in row-major format (i.e., each row corresponds to a pixel and each column corresponds to a timestamp). The folder has the following structure:
+1. *Pixel Time Series*: A folder containing (potentially multiple) CSV files with the time series of a set of pixels, in column-major format (i.e., each row corresponds to a timestamp and each column corresponds to a pixel). The folder has the following structure:
     ```
     output_dir
-    ├── pixel_timeseries_1.csv
-    ├── pixel_timeseries_2.csv
-    └── ...
+    └── pixel_timeseries
+        ├── patchlet_0_0.csv
+        ├── patchlet_0_1.csv
+        └── ...
     ```
-Each CSV file contains the time series of a set of pixels. The first column of the CSV file contains the pixel IDs, and the remaining columns contain the LAI values of the pixels at different timestamps. The pixel IDs are the row and column indices of the pixels in the image, e.g., `1_1` for the pixel in the first row and first column, `1_2` for the pixel in the first row and second column, etc.
+Each CSV file contains the time series for a subset of pixels (i.e., patchlet). The first column of the CSV file contains the timestamps, and the remaining columns contain the LAI values of the pixels. The pixel IDs are the row and column indices of the pixels in the image, e.g., `0_0` for the pixel in the first row and first column, `0_1` for the pixel in the first row and second column, etc.
 The CSV files will therefore have the following structure:
-| pixel_id | timestamp_1 | timestamp_2 | timestamp_3 | ... |
-|----------|-------------|-------------|-------------|-----|
-| 1_1      | 0.5         | 0.6         | 0.7         | ... |
-| 1_2      | 0.4         | 0.5         | 0.6         | ... |
-| ...      | ...         | ...         | ...         | ... |
+| timestamps | 0_0 | 0_1 | ... |
+|----------|-------------|-------------|-----|
+| 2020-01-01        | 0.5         | 0.6         | ... |
+| 2020-01-02        | 0.4         | 0.5         | ... |
+| ...      | ...         | ...         | ... |
 
 **Note:** This output is generated if the *skippx* flag is not set.
 
-2. *Field Time Series*: A CSV file containing the time series of the fields, in row-major format (i.e., each row corresponds to a field and each column corresponds to a timestamp). The CSV file has the following structure:
-    ```
-    output_dir
-    ├── field_timeseries.csv
-    ```
-The first column of the CSV file contains the field IDs, and the remaining columns contain the aggregated LAI values of the fields at different timestamps. The field IDs are the indices of the fields in the shapefile, e.g., `1` for the first field, `2` for the second field, etc.
-The CSV file will therefore have the following structure:
-| field_id | timestamp_1 | timestamp_2 | timestamp_3 | ... |
-|----------|-------------|-------------|-------------|-----|
-| 1        | 0.5         | 0.6         | 0.7         | ... |
-| 2        | 0.4         | 0.5         | 0.6         | ... |
-| ...      | ...         | ...         | ...         | ... |
+2. *Field Time Series*: A CSV file containing the time series of the fields, in column-major format (i.e., each row corresponds to a timestamp and each column corresponds to a field). The file is named `field_timeseries.csv` and is saved in the output folder. The CSV file contains the time series for each field, with the first column containing the timestamps, and the remaining columns containing the aggregated LAI values of the fields. The CSV file will therefore have the following structure:
+| timestamps | field_0 | field_1 | ... |
+|----------|-------------|-------------|-----|
+| 2020-01-01        | 0.5         | 0.6         | ... |
+| 2020-01-02        | 0.4         | 0.5         | ... |
+| ...      | ...         | ...         | ... |
 
 ## Metrics
 The module outputs the following metrics about the run as metadata:
@@ -100,24 +97,26 @@ docker pull alexdarancio7/stelar_image2ts:latest
 ```
 ### Example Usage
 Then, given we have the following input parameters:
-- *input_path*: `s3://localhost:9000/path/to/input_dir`
-- *output_path*: `s3://localhost:9000/path/to/output_dir`
-- *field_path*: `s3://localhost:9000/path/to/fields.shp`
+- *input_path*: `s3://path/to/input_dir`
+- *output_path*: `s3://path/to/output_dir`
+- *field_path*: `s3://path/to/fields.shp`
 - *skippx*: `True`
 - *MINIO_ACCESS_KEY*: `minio`
 - *MINIO_SECRET_KEY*: `minio123`
+- *MINIO_ENDPOINT_URL*: `http://localhost:9000`
 
 We can run the module as follows:
 ```bash
 docker run -it \
 --network="host" \
 alexdarancio7/stelar_image2ts \
---input_path s3://localhost:9000/path/to/input_dir \
---output_path s3://localhost:9000/path/to/output_dir \
---field_path s3://localhost:9000/path/to/fields.shp \
---skippx \
+--input_path s3://path/to/input_dir \
+--output_path s3://path/to/output_dir \
+--field_path s3://path/to/fields.shp \
+-skippx \
 --MINIO_ACCESS_KEY minio \
---MINIO_SECRET_KEY minio123 
+--MINIO_SECRET_KEY minio123 \
+--MINIO_ENDPOINT_URL http://localhost:9000
 ```
 
 ## License & Acknowledgements

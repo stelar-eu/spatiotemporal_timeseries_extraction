@@ -7,7 +7,9 @@ from stelar_spatiotemporal.preprocessing.preprocessing import combine_npys_into_
 from stelar_spatiotemporal.preprocessing.vista_preprocessing import unpack_vista_unzipped
 from stelar_spatiotemporal.preprocessing.timeseries import lai_to_csv_px, lai_to_csv_field
 from stelar_spatiotemporal.lib import load_bbox, get_filesystem
+import argparse
 
+parser = argparse.ArgumentParser(description='Convert raster images to time series dataset')
    
 def parse_args(args:List[str]) -> dict:
     pixel = True
@@ -107,26 +109,31 @@ def cleanup(tmp_path:str):
             os.system("rm -rf {}".format(todel_path))
 
 
-def image2ts_pipeline(ras_paths:List[str], rhd_paths:List[str], out_path:str, fields_path:str, pixel:bool, field:bool):
+def image2ts_pipeline(input_path:str, output_path:str, field_path:str, 
+                      skip_pixel:bool):
     """
-    This function takes a list of raster paths and a list of raster header paths and converts them to time series dataset; 
-    both on pixel-level and on (predetermined) field-level.
+    This function takes a directory of raster files and headers and converts them to time series dataset.
 
     Parameters
     ----------
-    ras_paths : List[str]
-        List of paths to raster files
-    rhd_paths : List[str]
-        List of paths to raster header files (file names should match with ras_paths)
-    out_path : str
-        Path to output folder
-    fields_path : str
-        Path to folder containing field shapefiles
-    pixel : bool
-        Whether to create pixel-level time series
-    field : bool
-        Whether to create field-level time series
+    input_path : str
+        Path to the folder containing the input images as RAS and RHD files.
+    output_path : str
+        Path to the folder where the output files will be saved.
+    field_path : str
+        Path to the shapefile containing the boundaries of the agricultural fields. If not given, field-level time series will not be created.
+    skip_pixel : bool
+        Skip creating pixel-level time series
     """
+    # Get the ras and rhd paths
+    fs = get_filesystem(input_path)
+    ras_paths = fs.glob(os.path.join(input_path, "*.RAS"))
+    rhd_paths = fs.glob(os.path.join(input_path, "*.RHD"))
+
+    # Check if we do pixel, field, or both
+    pixel = not skip_pixel
+    field = field_path is not None
+
     # Check if rhd_paths match with ras_paths
     if len(ras_paths) != len(rhd_paths):
         raise ValueError("Length of ras_paths and rhd_paths should be equal.")
@@ -160,7 +167,7 @@ def image2ts_pipeline(ras_paths:List[str], rhd_paths:List[str], out_path:str, fi
     # 3. Create pixel-level time series
     if pixel:
         patchlets_dir = os.path.join(TMP_PATH, "patchlets")
-        px_path = os.path.join(out_path, "pixel_timeseries")
+        px_path = os.path.join(output_path, "pixel_timeseries")
         print("3. Creating pixel-level time series...")
         create_px_ts(eop_dir=eopatches_dir,
                      patchlet_dir=patchlets_dir,
@@ -168,23 +175,85 @@ def image2ts_pipeline(ras_paths:List[str], rhd_paths:List[str], out_path:str, fi
 
     # 4. Create field-level time series
     if field:
-        field_ts_path = os.path.join(out_path, "field_timeseries")
+        field_ts_path = os.path.join(output_path, "field_timeseries")
         print("4. Creating field-level time series...")
         create_field_ts(out_path=field_ts_path, 
-                        fields_path=fields_path)
+                        fields_path=field_path)
 
     # 5. Cleanup
     print("5. Cleaning up...")
     cleanup(TMP_PATH)
     
+
+parser.add_argument("-i", "--input_path", 
+                    type=str, 
+                    required=True,
+                    help="Path to the folder containing the input images as RAS and RHD files.")
+parser.add_argument("-o", "--output_path",
+                    type=str,
+                    required=True,
+                    help="Path to the folder where the output files will be saved.")
+parser.add_argument("-f", "--field_path",
+                    type=str,
+                    required=False,
+                    default=None,
+                    help="Path to the shapefile containing the boundaries of the agricultural fields. If not given, field-level time series will not be created.")
+parser.add_argument("-skippx", "--skip_pixel",
+                    action="store_true",
+                    help="Skip creating pixel-level time series")
+parser.add_argument("--MINIO_ACCESS_KEY",
+                    type=str,
+                    required=False,
+                    default=None,
+                    help="Access key for the MinIO server. Required if the input and output paths are on MinIO (i.e., start with 's3://').")
+parser.add_argument("--MINIO_SECRET_KEY",
+                    type=str,
+                    required=False,
+                    default=None,
+                    help="Secret key for the MinIO server. Required if the input and output paths are on MinIO (i.e., start with 's3://').")
+parser.add_argument("--MINIO_ENDPOINT_URL",
+                    type=str,
+                    required=False,
+                    default=None,
+                    help="Endpoint URL for the MinIO server. Required if the input and output paths are on MinIO (i.e., start with 's3://').")
     
 if __name__ == "__main__":
     if len(sys.argv) == 1:
-        ras_paths = "s3://stelar-spatiotemporal/LAI/30TYQ_LAI_2020.RAS"
-        rhd_paths = "s3://stelar-spatiotemporal/LAI/30TYQ_LAI_2020.RHD"
-        out_dir = "s3://stelar-spatiotemporal/LAI"
-        fields_path = "s3://stelar-spatiotemporal/fields.gpkg"
-        sys.argv = ["", ras_paths, rhd_paths, out_dir, fields_path, "-skipfields"]
+        input_path = "s3://stelar-spatiotemporal/LAI_small"
+        output_path = "s3://stelar-spatiotemporal"
+        field_path = None
+        skip_pixel = False
+        MINIO_ACCESS_KEY = "minioadmin"
+        MINIO_SECRET_KEY = "minioadmin"
+        MINIO_ENDPOINT_URL = "http://localhost:9000"
+    else:
+        args = parser.parse_args()
+        input_path = args.input_path
+        output_path = args.output_path
+        field_path = args.field_path
+        skip_pixel = args.skip_pixel
+        MINIO_ACCESS_KEY = args.MINIO_ACCESS_KEY
+        MINIO_SECRET_KEY = args.MINIO_SECRET_KEY
+        MINIO_ENDPOINT_URL = args.MINIO_ENDPOINT_URL
+    
+    # Check dependencies between arguments
+    isminio = input_path.startswith("s3://") or output_path.startswith("s3://") or field_path.startswith("s3://")
+    nocred = MINIO_ACCESS_KEY is None or MINIO_SECRET_KEY is None or MINIO_ENDPOINT_URL is None
+    if isminio and nocred:
+        raise ValueError("Access and secret keys are required if any path is on MinIO.")
+    
+    # Set the environment variables
+    if isminio:
+        os.environ["MINIO_ACCESS_KEY"] = MINIO_ACCESS_KEY
+        os.environ["MINIO_SECRET_KEY"] = MINIO_SECRET_KEY
+        os.environ["MINIO_ENDPOINT_URL"] = MINIO_ENDPOINT_URL
+    
+    image2ts_pipeline(input_path=input_path,
+                      output_path=output_path,
+                      field_path=field_path,
+                      skip_pixel=skip_pixel)
 
-    args_dict = parse_args(sys.argv)
-    image2ts_pipeline(**args_dict)
+    
+
+
+
