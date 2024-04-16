@@ -6,16 +6,26 @@ MINIO_ACCESS_KEY=minioadmin
 MINIO_SECRET_KEY=minioadmin
 MINIO_ENDPOINT_URL=http://localhost:9000
 
-input_path="s3://stelar-spatiotemporal/LAI_small"
+input_path="s3://stelar-spatiotemporal/LAI_fused"
 output_path="s3://stelar-spatiotemporal"
-fields_path="s3://stelar-spatiotemporal/fields_2020_07_27.gpkg"
+# fields_path="s3://stelar-spatiotemporal/fields_2020_07_27.gpkg"
 
 docker run -it \
 --network="host" \
-alexdarancio7/stelar_image2ts \
---input_path $input_path \
---output_path $output_path \
---field_path $fields_path \
+tmp \
+-i $input_path \
+-x "TIF" \
+-o $output_path \
 --MINIO_ACCESS_KEY $MINIO_ACCESS_KEY \
 --MINIO_SECRET_KEY $MINIO_SECRET_KEY  \
 --MINIO_ENDPOINT_URL $MINIO_ENDPOINT_URL
+
+# docker run -it \
+# --network="host" \
+# alexdarancio7/stelar_image2ts \
+# --input_path $input_path \
+# --output_path $output_path \
+# --field_path $fields_path \
+# --MINIO_ACCESS_KEY $MINIO_ACCESS_KEY \
+# --MINIO_SECRET_KEY $MINIO_SECRET_KEY  \
+# --MINIO_ENDPOINT_URL $MINIO_ENDPOINT_URL

@@ -4,7 +4,7 @@ import sys
 import rasterio.transform
 from sentinelhub import CRS
 from typing import List
-from stelar_spatiotemporal.preprocessing.preprocessing import combine_npys_into_eopatches, max_partition_size
+from stelar_spatiotemporal.preprocessing.preprocessing import combine_npys_into_eopatches, max_partition_size, unpack_tif
 from stelar_spatiotemporal.preprocessing.vista_preprocessing import unpack_vista_unzipped
 from stelar_spatiotemporal.preprocessing.timeseries import lai_to_csv_px, lai_to_csv_field
 from stelar_spatiotemporal.lib import load_bbox, get_filesystem, save_bbox
@@ -22,61 +22,6 @@ parser = argparse.ArgumentParser(description='Convert raster images to time seri
 def unpack_ras(ras_paths:List[str], rhd_paths:List[str], out_path:str):
     for ras_path, rhd_path in zip(ras_paths, rhd_paths):
         unpack_vista_unzipped(ras_path, rhd_path, out_path, delete_after=False, crs=CRS('32630'))
-
-def unpack_tif(tif_paths:List[str], outdir:str):
-    fs = get_filesystem(input_path)
-    paths = fs.glob(os.path.join(input_path, "*.{}".format(extension)))
-
-    if len(paths) == 0:
-        raise ValueError("No {} files found in the input folder.".format(extension))
-    
-    # 1. Unpack the TIF files and save to npy
-    # TODO package this into a function in stelar spatiotemporal
-    print(f"Unpacking {len(paths)} files...")
-    gbbox = None
-    for path in paths:
-        # Open the raster
-        with fs.open(path, 'rb') as f, MemoryFile(f) as memfile:
-            with memfile.open() as src:
-                bbox = rasterio.transform.array_bounds(src.height, src.width, src.transform)
-                crs = CRS(src.crs.to_string())
-                bbox = BBox(bbox, crs)
-
-                # Check if the bbox is the same for all images
-                if not gbbox:
-                    gbbox = bbox
-                elif bbox != gbbox:
-                    # print(bbox, gbbox)
-                    raise ValueError("Bounding boxes of the images do not match.")
-                
-                # See if there are timestamps in the metadata in format YYYYMMDD
-                timestamps = src.tags().get("TIFFTAG_DATETIME").split(" ") if "TIFFTAG_DATETIME" in src.tags() else None
-
-                if timestamps is None and src.count == 1:
-                    # Check if there is a timestamp in the filename in the format YYYYMMDD
-                    filename = os.path.basename(path)
-                    timestamps = re.search(r"\d{8}", filename)
-                    if timestamps:
-                        timestamps = [timestamps.group()]
-
-                if not timestamps:
-                    raise ValueError("No timestamps found in the metadata or the filename.")
-                
-                # Parse the timestamps
-                timestamps = [dt.datetime.strptime(timestamp, "%Y%m%d") for timestamp in timestamps]
-
-                # Read each of the images and save them to npy
-                for timestamp in timestamps:
-                    img = src.read().squeeze()
-
-                    # Save the image to npy
-                    npy_path = os.path.join(outdir, "{}.npy".format(timestamp.strftime("%Y_%m_%d")))
-                    np.save(npy_path, img)
-
-    # Save the bbox
-    bbox_path = os.path.join(outdir, "bbox.pkl")
-    save_bbox(bbox, bbox_path)
-
 
 def combining_npys(npy_dir:str, out_path:str): 
 
@@ -193,13 +138,9 @@ def image2ts_pipeline(input_path:str, extension:str,
     else:
         # TODO do not do temporary unpacking for TIF files for field level time series -> directly read the TIF files
         # 1. Unpack the TIF files
-        print("1. Unpacking {} files...".format(extension))
-        
-        fs = get_filesystem(input_path)
-        tif_paths = fs.glob(os.path.join(input_path, "*.{}".format(extension)))
-
-        unpack_tif(tif_paths=tif_paths,
-                     outdir=npy_dir)
+        unpack_tif(indir=input_path,
+                    outdir=npy_dir,
+                    extension=extension,)
 
     # 2. Combining the images into eopatches
     print("2. Combining the images into eopatches...")
@@ -268,7 +209,7 @@ parser.add_argument("--MINIO_ENDPOINT_URL",
     
 if __name__ == "__main__":
     if len(sys.argv) == 1:
-        input_path = "s3://stelar-spatiotemporal/LAI_fused"
+        input_path = "s3://stelar-spatiotemporal/LAI_small_fused"
         output_path = "s3://stelar-spatiotemporal"
         extension = 'TIF'
         # field_path = "s3://stelar-spatiotemporal/fields_2020_07_27.gpkg"
