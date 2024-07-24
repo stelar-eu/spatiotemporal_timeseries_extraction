@@ -136,7 +136,6 @@ def image2ts_pipeline(input_path:str, extension:str,
                 rhd_paths=rhd_paths, 
                 out_path=npy_dir)
     else:
-        # TODO do not do temporary unpacking for TIF files for field level time series -> directly read the TIF files
         # 1. Unpack the TIF files
         unpack_tif(indir=input_path,
                     outdir=npy_dir,
@@ -165,10 +164,6 @@ def image2ts_pipeline(input_path:str, extension:str,
                         out_path=field_ts_path, 
                         fields_path=field_path)
 
-    # 5. Cleanup
-    print("5. Cleaning up...")
-    cleanup(TMP_PATH)
-    
 
 parser.add_argument("-i", "--input_path", 
                     type=str, 
@@ -209,15 +204,14 @@ parser.add_argument("--MINIO_ENDPOINT_URL",
     
 if __name__ == "__main__":
     if len(sys.argv) == 1:
-        input_path = "s3://stelar-spatiotemporal/LAI_small_fused"
-        output_path = "s3://stelar-spatiotemporal"
-        extension = 'TIF'
-        # field_path = "s3://stelar-spatiotemporal/fields_2020_07_27.gpkg"
-        field_path = None
-        skip_pixel = False
-        MINIO_ACCESS_KEY = "minioadmin"
-        MINIO_SECRET_KEY = "minioadmin"
-        MINIO_ENDPOINT_URL = "http://localhost:9000"
+        input_path = "insert here"
+        output_path = "insert here"
+        extension = "insert here"
+        field_path = "insert here"
+        skip_pixel = "insert here"
+        MINIO_ACCESS_KEY = "insert here"
+        MINIO_SECRET_KEY = "insert here"
+        MINIO_ENDPOINT_URL ="insert here"
     else:
         args = parser.parse_args()
         input_path = args.input_path
@@ -240,6 +234,8 @@ if __name__ == "__main__":
         os.environ["MINIO_ACCESS_KEY"] = MINIO_ACCESS_KEY
         os.environ["MINIO_SECRET_KEY"] = MINIO_SECRET_KEY
         os.environ["MINIO_ENDPOINT_URL"] = MINIO_ENDPOINT_URL
+        os.environ["AWS_ACCESS_KEY_ID"] = MINIO_ACCESS_KEY
+        os.environ["AWS_SECRET_ACCESS_KEY"] = MINIO_SECRET_KEY
     
     image2ts_pipeline(input_path=input_path,
                       extension=extension,
