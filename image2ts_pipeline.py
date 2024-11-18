@@ -1,3 +1,4 @@
+import json
 import os
 import glob
 import sys
@@ -15,9 +16,8 @@ import re
 import datetime as dt
 import numpy as np
 from sentinelhub import BBox, CRS
+import time
 
-parser = argparse.ArgumentParser(description='Convert raster images to time series dataset')
-   
 
 def unpack_ras(ras_paths:List[str], rhd_paths:List[str], out_path:str):
     for ras_path, rhd_path in zip(ras_paths, rhd_paths):
@@ -33,8 +33,8 @@ def combining_npys(npy_dir:str, out_path:str):
 
     bbox = load_bbox(os.path.join(npy_dir, "bbox.pkl"))
 
-    combine_npys_into_eopatches(npy_paths=npy_paths, 
-                            outpath=out_path,
+    combine_npys_into_eopatches(
+        npy_paths=npy_paths, outpath=out_path,
                             feature_name="LAI",
                             bbox=bbox,
                             partition_size=mps,
@@ -114,6 +114,8 @@ def image2ts_pipeline(input_path:str, extension:str,
     skip_pixel : bool
         Skip creating pixel-level time series
     """
+    total_start = time.time()
+
     # Check if we do pixel, field, or both
     pixel = not skip_pixel
     field = field_path is not None
@@ -127,6 +129,9 @@ def image2ts_pipeline(input_path:str, extension:str,
     if not os.path.exists(npy_dir):
         os.makedirs(npy_dir)
 
+    partial_times = []
+
+    start = time.time()
     if extension == "RAS":
         ras_paths, rhd_paths = check_ras(input_path)
 
@@ -140,108 +145,144 @@ def image2ts_pipeline(input_path:str, extension:str,
         unpack_tif(indir=input_path,
                     outdir=npy_dir,
                     extension=extension,)
+    
+    partial_times.append({
+        "step": "Unpacking RAS files",
+        "runtime": time.time() - start
+    })
+
+    npys = glob.glob(os.path.join(npy_dir, "*.npy"))
+    n_images = len(npys)
+
+    # Get width and height of the images
+    arr = np.load(npys[0])
+    height, width = arr.shape
 
     # 2. Combining the images into eopatches
+    start = time.time()
+
     print("2. Combining the images into eopatches...")
     eopatches_dir = os.path.join(TMP_PATH, "lai_eopatch")
-    combining_npys(npy_dir=npy_dir,
-                   out_path=eopatches_dir)
+    combining_npys(npy_dir=npy_dir, out_path=eopatches_dir)
+
+    partial_times.append({
+        "step": "Combining the images into eopatches",
+        "runtime": time.time() - start
+    })
 
     # 3. Create pixel-level time series
     if pixel:
+        start = time.time()
+
         patchlets_dir = os.path.join(TMP_PATH, "patchlets")
         px_path = os.path.join(output_path, "pixel_timeseries")
         print("3. Creating pixel-level time series...")
         create_px_ts(eop_dir=eopatches_dir,
                      patchlet_dir=patchlets_dir,
                      out_path=px_path)
+        
+        partial_times.append({
+            "step": "Creating pixel-level time series",
+            "runtime": time.time() - start
+        })
 
     # 4. Create field-level time series
     if field:
+        start = time.time()
+
         field_ts_path = os.path.join(output_path, "field_timeseries")
         print("4. Creating field-level time series...")
         create_field_ts(eop_dir=eopatches_dir,
                         out_path=field_ts_path, 
                         fields_path=field_path)
+        
+        partial_times.append({
+            "step": "Creating field-level time series",
+            "runtime": time.time() - start
+        })
+        
+    # 5. Create the output json
+    output_json = {
+        "message": "Time series data has been created successfully.",
+        "output": [
+            {
+                "path": output_path,
+                "type": "Directory containing the time series data."
+            }
+        ],
+        "metrics": {
+            "number_of_images": n_images,
+            "image_width": width,
+            "image_height": height,
+            "total_runtime": time.time() - total_start,
+            "partial_runtimes": partial_times,
+        }
+    }
 
+    return output_json
+        
 
-parser.add_argument("-i", "--input_path", 
-                    type=str, 
-                    required=True,
-                    help="Path to the folder containing the input images.")
-parser.add_argument("-x", "--file_extension", 
-                    type=str, 
-                    required=False,
-                    default="RAS",
-                    help="Extension of the input files. Default is 'RAS'.")
-parser.add_argument("-o", "--output_path",
-                    type=str,
-                    required=True,
-                    help="Path to the folder where the output files will be saved.")
-parser.add_argument("-f", "--field_path",
-                    type=str,
-                    required=False,
-                    default=None,
-                    help="Path to the shapefile containing the boundaries of the agricultural fields. If not given, field-level time series will not be created.")
-parser.add_argument("-skippx", "--skip_pixel",
-                    action="store_true",
-                    help="Skip creating pixel-level time series")
-parser.add_argument("--MINIO_ACCESS_KEY",
-                    type=str,
-                    required=False,
-                    default=None,
-                    help="Access key for the MinIO server. Required if the input and output paths are on MinIO (i.e., start with 's3://').")
-parser.add_argument("--MINIO_SECRET_KEY",
-                    type=str,
-                    required=False,
-                    default=None,
-                    help="Secret key for the MinIO server. Required if the input and output paths are on MinIO (i.e., start with 's3://').")
-parser.add_argument("--MINIO_ENDPOINT_URL",
-                    type=str,
-                    required=False,
-                    default=None,
-                    help="Endpoint URL for the MinIO server. Required if the input and output paths are on MinIO (i.e., start with 's3://').")
-    
 if __name__ == "__main__":
-    if len(sys.argv) == 1:
-        input_path = "insert here"
-        output_path = "insert here"
-        extension = "insert here"
-        field_path = "insert here"
-        skip_pixel = "insert here"
-        MINIO_ACCESS_KEY = "insert here"
-        MINIO_SECRET_KEY = "insert here"
-        MINIO_ENDPOINT_URL ="insert here"
+    if len(sys.argv) < 3: # If no arguments are given, use the default values
+        input_json_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/0.VISTA/VISTA_workbench/src/modules/image2ts/resources/input.json"
+        output_json_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/0.VISTA/VISTA_workbench/src/modules/image2ts/resources/output.json"
     else:
-        args = parser.parse_args()
-        input_path = args.input_path
-        extension = args.file_extension
-        output_path = args.output_path
-        field_path = args.field_path
-        skip_pixel = args.skip_pixel
-        MINIO_ACCESS_KEY = args.MINIO_ACCESS_KEY
-        MINIO_SECRET_KEY = args.MINIO_SECRET_KEY
-        MINIO_ENDPOINT_URL = args.MINIO_ENDPOINT_URL
+        input_json_path = sys.argv[1]
+        output_json_path = sys.argv[2]
+
+    # Read and parse the input JSON file
+    with open(input_json_path, "r") as f:
+        input_json = json.load(f)
+
+    # Required parameters
+    try:
+        input_path = input_json["input"][0]["path"]
+    except Exception as e:
+        raise ValueError("Input path is required. See the documentation for the suggested input format. Error: {}".format(e))
     
-    # Check dependencies between arguments
-    isminio = input_path.startswith("s3://") or output_path.startswith("s3://") or field_path.startswith("s3://")
-    nocred = MINIO_ACCESS_KEY is None or MINIO_SECRET_KEY is None or MINIO_ENDPOINT_URL is None
-    if isminio and nocred:
-        raise ValueError("Access and secret keys are required if any path is on MinIO.")
+    try:
+        output_path = input_json["parameters"]["output_path"]
+    except Exception as e:
+        raise ValueError("Output path is required. See the documentation for the suggested input format. Error: {}".format(e))
     
-    # Set the environment variables
-    if isminio:
-        os.environ["MINIO_ACCESS_KEY"] = MINIO_ACCESS_KEY
-        os.environ["MINIO_SECRET_KEY"] = MINIO_SECRET_KEY
-        os.environ["MINIO_ENDPOINT_URL"] = MINIO_ENDPOINT_URL
-        os.environ["AWS_ACCESS_KEY_ID"] = MINIO_ACCESS_KEY
-        os.environ["AWS_SECRET_ACCESS_KEY"] = MINIO_SECRET_KEY
+    # Optional parameters
+    file_extension = input_json["parameters"].get("extension", "RAS")
+    field_path = input_json["parameters"].get("field_path", None)
+    skip_pixel = input_json["parameters"].get("skip_pixel", False)
+
+    # Check if minio credentials are provided
+    if "minio" in input_json:
+        try:
+            id = input_json["minio"]["id"]
+            key = input_json["minio"]["key"]
+            url = input_json["minio"]["endpoint_url"]
+
+            os.environ["MINIO_ACCESS_KEY"] = id
+            os.environ["MINIO_SECRET_KEY"] = key
+            os.environ["MINIO_ENDPOINT_URL"] = url
+
+            os.environ["AWS_ACCESS_KEY_ID"] = id
+            os.environ["AWS_SECRET_ACCESS_KEY"] = key
+
+            # Add s3:// to the input and output paths
+            input_path = "s3://" + input_path
+            output_path = "s3://" + output_path
+            field_path = "s3://" + field_path if field_path is not None else None
+
+        except Exception as e:
+            raise ValueError("Access and secret keys are required if any path is on MinIO. Error: {}".format(e))
+
+    response = image2ts_pipeline(input_path=input_path,
+                                extension=file_extension,
+                                output_path=output_path,
+                                field_path=field_path,
+                                skip_pixel=skip_pixel)
     
-    image2ts_pipeline(input_path=input_path,
-                      extension=extension,
-                      output_path=output_path,
-                      field_path=field_path,
-                      skip_pixel=skip_pixel)
+
+    print(response)
+    
+    with open(output_json_path, "w") as f:
+        json.dump(response, f, indent=4)
 
     
 

@@ -1,0 +1,29 @@
+{
+    "message": "Time series data has been created successfully.",
+    "output": [
+        {
+            "path": "s3://klms/Pilot_B/UCB2/33UUP/TIMESERIES_EXTRACTION/test",
+            "type": "Directory containing the time series data."
+        }
+    ],
+    "metrics": {
+        "number_of_images": 1,
+        "image_width": 1128,
+        "image_height": 1128,
+        "total_runtime": 7.46787166595459,
+        "partial_runtimes": [
+            {
+                "step": "Unpacking RAS files",
+                "runtime": 3.8297972679138184
+            },
+            {
+                "step": "Combining the images into eopatches",
+                "runtime": 0.02138805389404297
+            },
+            {
+                "step": "Creating pixel-level time series",
+                "runtime": 3.614686965942383
+            }
+        ]
+    }
+}
