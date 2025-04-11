@@ -10,19 +10,19 @@
         "number_of_images": 1,
         "image_width": 1128,
         "image_height": 1128,
-        "total_runtime": 4.056714296340942,
+        "total_runtime": 4.663129091262817,
         "partial_runtimes": [
             {
                 "step": "Unpacking RAS files",
-                "runtime": 0.6867437362670898
+                "runtime": 0.665003776550293
             },
             {
                 "step": "Combining the images into eopatches",
-                "runtime": 0.020428895950317383
+                "runtime": 0.015412092208862305
             },
             {
                 "step": "Creating pixel-level time series",
-                "runtime": 3.3467395305633545
+                "runtime": 3.9811201095581055
             }
         ]
     }

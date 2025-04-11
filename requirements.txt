@@ -1,2 +1,2 @@
-stelar_spatiotemporal==0.0.28
+stelar_spatiotemporal==0.0.29
 opencv-python
