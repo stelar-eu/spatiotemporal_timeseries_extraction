@@ -105,7 +105,7 @@ Then, given we have the following input parameters:
 We can run the module as follows:
 ```bash
 docker run -v path/to/jsons:/app/resources -it \
-alexdarancio7/stelar_image2ts input.json output.json
+alexdarancio7/stelar_image2ts resources/input.json resources/output.json
 ```
 where `input.json` is a JSON file formatted as follows:
 ```json

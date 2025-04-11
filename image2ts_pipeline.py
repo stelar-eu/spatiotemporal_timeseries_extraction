@@ -4,7 +4,7 @@ import glob
 import sys
 import rasterio.transform
 from sentinelhub import CRS
-from typing import List
+from typing import List, Text
 from stelar_spatiotemporal.preprocessing.preprocessing import combine_npys_into_eopatches, max_partition_size, unpack_tif
 from stelar_spatiotemporal.preprocessing.vista_preprocessing import unpack_vista_unzipped
 from stelar_spatiotemporal.preprocessing.timeseries import lai_to_csv_px, lai_to_csv_field
@@ -66,35 +66,31 @@ def cleanup(tmp_path:str):
             print("Deleting {}".format(todel_path))
             os.system("rm -rf {}".format(todel_path))
 
-def check_ras(input_path):
-    # Check if rhd_paths match with ras_paths
+def check_ras(input_paths: List[Text]):
+    ras_paths = [p for p in input_paths if p.endswith(".RAS")]
+    rhd_paths = [p for p in input_paths if p.endswith(".RHD")]
 
-    fs = get_filesystem(input_path)
-    ras_paths = fs.glob(os.path.join(input_path, "*.RAS"))
-    rhd_paths = fs.glob(os.path.join(input_path, "*.RHD"))
-    if len(ras_paths) == 0:
-        raise ValueError("No RAS files found in the input folder.")
-    if len(rhd_paths) == 0:
-        raise ValueError("No RHD files found in the input folder.")
-    if len(ras_paths) != len(rhd_paths):
-        raise ValueError("Number of RAS and RHD files do not match.")
-    
-    ras_paths_match = []
-    rhd_paths_match = []
+    ras_path_filtered = []
+    rhd_path_filtered = []
+
+    # Filter out the RAS files that do not have a corresponding RHD file in the same directory
     for ras_path in ras_paths:
-        exp_rhd_basename = os.path.basename(ras_path).replace(".RAS", ".RHD")
-        for rhd_path in rhd_paths:
-            if rhd_path.endswith(exp_rhd_basename): 
-                ras_paths_match.append(ras_path)
-                rhd_paths_match.append(rhd_path)
-                break
+        base_name = os.path.basename(ras_path)
+        rhd_path = os.path.join(os.path.dirname(ras_path), base_name.replace(".RAS", ".RHD"))
+        rhd_path = rhd_paths.get(rhd_path)
+        if rhd_path:
+            ras_path_filtered.append(ras_path)
+            rhd_path_filtered.append(rhd_path)
         else:
-            raise ValueError("No matching rhd_path found for ras_path: {}".format(ras_path))
-        
-    return ras_paths_match, rhd_paths_match
+            print(f"Warning: No corresponding RHD file found for {ras_path}. Skipping this file.")
 
+    # Check if the number of RAS and RHD files match
+    if len(ras_path_filtered) != len(rhd_path_filtered):
+        raise ValueError("Number of RAS and RHD files do not match. Please check the input paths.")
+    
+    return ras_path_filtered, rhd_path_filtered
 
-def image2ts_pipeline(input_path:str, extension:str,
+def image2ts_pipeline(input_paths: List[Text], extension:str,
                       output_path:str, 
                       field_path:str, 
                       skip_pixel:bool):
@@ -103,10 +99,10 @@ def image2ts_pipeline(input_path:str, extension:str,
 
     Parameters
     ----------
-    input_path : str
-        Path to the folder containing the input images.
+    input_paths : List[Text]
+        List of paths to the input files.
     extension : str
-        Extension of the input files. Default is 'RAS'.
+        Extension of the input files. Default is 'TIF'.
     output_path : str
         Path to the folder where the output files will be saved.
     field_path : str
@@ -132,8 +128,17 @@ def image2ts_pipeline(input_path:str, extension:str,
     partial_times = []
 
     start = time.time()
+
+    if extension == '.RAS':
+        input_paths = [path for path in input_paths if path.endswith((".RAS", '.RHD'))]
+    else:
+        input_paths = [path for path in input_paths if path.endswith(extension)]
+
+    if len(input_paths) == 0:
+        raise ValueError("No input files found with the extension {}.".format(extension))
+
     if extension == "RAS":
-        ras_paths, rhd_paths = check_ras(input_path)
+        ras_paths, rhd_paths = check_ras(input_paths)
 
         # 1. Unpack the RAS files
         print("1. Unpacking RAS files...")
@@ -142,7 +147,7 @@ def image2ts_pipeline(input_path:str, extension:str,
                 out_path=npy_dir)
     else:
         # 1. Unpack the TIF files
-        unpack_tif(indir=input_path,
+        unpack_tif(image_paths=input_paths,
                     outdir=npy_dir,
                     extension=extension,)
     
@@ -233,58 +238,61 @@ if __name__ == "__main__":
     # Read and parse the input JSON file
     with open(input_json_path, "r") as f:
         input_json = json.load(f)
+    
+    # Handle the new input format which includes a "result" section
+    if "result" in input_json:
+        input_data = input_json["result"]
+    else:
+        input_data = input_json
 
-    # Required parameters
+    # Required parameters - now handling a list of image paths
     try:
-        input_path = input_json["input"][0]["path"]
+        # The input images are now in result.input.images which is a list
+        input_paths = input_data["input"]["images"]
+        if not isinstance(input_paths, list):
+            input_paths = [input_paths]
     except Exception as e:
-        raise ValueError("Input path is required. See the documentation for the suggested input format. Error: {}".format(e))
+        raise ValueError(f"Input paths are required. See the documentation for the suggested input format. Error: {e}")
     
     try:
-        output_path = input_json["parameters"]["output_path"]
+        # The output path is now in result.output.timeseries
+        output_path = input_data["output"]["timeseries"]
     except Exception as e:
-        raise ValueError("Output path is required. See the documentation for the suggested input format. Error: {}".format(e))
+        raise ValueError(f"Output path is required. See the documentation for the suggested input format. Error: {e}")
     
     # Optional parameters
-    file_extension = input_json["parameters"].get("extension", "RAS")
-    field_path = input_json["parameters"].get("field_path", None)
-    skip_pixel = input_json["parameters"].get("skip_pixel", False)
+    file_extension = input_data.get("parameters", {}).get("extension", "TIF")
+    field_path = input_data.get("parameters", {}).get("field_path", None)
+    skip_pixel = input_data.get("parameters", {}).get("skip_pixel", False)
 
     # Check if minio credentials are provided
-    if "minio" in input_json:
+    if "minio" in input_data:
         try:
-            id = input_json["minio"]["id"]
-            key = input_json["minio"]["key"]
-            url = input_json["minio"]["endpoint_url"]
+            id = input_data["minio"]["id"]
+            key = input_data["minio"]["key"]
+            token = input_data["minio"].get("skey")
+            url = input_data["minio"]["endpoint_url"]
 
             os.environ["MINIO_ACCESS_KEY"] = id
             os.environ["MINIO_SECRET_KEY"] = key
             os.environ["MINIO_ENDPOINT_URL"] = url
-
-            os.environ["AWS_ACCESS_KEY_ID"] = id
-            os.environ["AWS_SECRET_ACCESS_KEY"] = key
-
-            # Add s3:// to the input and output paths
-            input_path = "s3://" + input_path
-            output_path = "s3://" + output_path
-            field_path = "s3://" + field_path if field_path is not None else None
+            os.environ["MINIO_SESSION_TOKEN"] = token
 
         except Exception as e:
-            raise ValueError("Access and secret keys are required if any path is on MinIO. Error: {}".format(e))
+            raise ValueError(f"Access and secret keys are required if any path is on MinIO. Error: {e}")
 
-    response = image2ts_pipeline(input_path=input_path,
+    response = image2ts_pipeline(input_paths=input_paths,
                                 extension=file_extension,
                                 output_path=output_path,
                                 field_path=field_path,
                                 skip_pixel=skip_pixel)
     
-
     print(response)
     
     with open(output_json_path, "w") as f:
         json.dump(response, f, indent=4)
 
-    
+
 
 
 
