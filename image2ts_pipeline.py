@@ -130,15 +130,23 @@ def image2ts_pipeline(input_paths: List[Text], extension:str,
     start = time.time()
 
     if extension == '.RAS':
-        input_paths = [path for path in input_paths if path.endswith((".RAS", '.RHD'))]
+        parsed_paths = [path for path in input_paths if path.endswith((".RAS", '.RHD'))]
     else:
-        input_paths = [path for path in input_paths if path.endswith(extension)]
+        parsed_paths = [path for path in input_paths if path.endswith(extension)]
 
-    if len(input_paths) == 0:
-        raise ValueError("No input files found with the extension {}.".format(extension))
+    # If no input files are found then the provided path might be a directory, so let's list the files in that directory with the given extension
+    if len(parsed_paths) == 0:
+        print("No input files found. Checking if the provided path is a directory...")
+        path = input_paths[0]
+        fs = get_filesystem(path)
+        if fs.isdir(path):
+            print("The provided path is a directory. Listing the files in that directory...")
+            parsed_paths = fs.glob(os.path.join(path, "*{}".format(extension)))
+        else:
+            raise ValueError("No input files found. Please check the input paths.")
 
     if extension == "RAS":
-        ras_paths, rhd_paths = check_ras(input_paths)
+        ras_paths, rhd_paths = check_ras(parsed_paths)
 
         # 1. Unpack the RAS files
         print("1. Unpacking RAS files...")
@@ -147,9 +155,10 @@ def image2ts_pipeline(input_paths: List[Text], extension:str,
                 out_path=npy_dir)
     else:
         # 1. Unpack the TIF files
-        unpack_tif(image_paths=input_paths,
-                    outdir=npy_dir,
-                    extension=extension,)
+        # unpack_tif(image_paths=parsed_paths,
+        #             outdir=npy_dir,
+        #             extension=extension,)
+        pass
     
     partial_times.append({
         "step": "Unpacking RAS files",
@@ -168,7 +177,7 @@ def image2ts_pipeline(input_paths: List[Text], extension:str,
 
     print("2. Combining the images into eopatches...")
     eopatches_dir = os.path.join(TMP_PATH, "lai_eopatch")
-    combining_npys(npy_dir=npy_dir, out_path=eopatches_dir)
+    # combining_npys(npy_dir=npy_dir, out_path=eopatches_dir)
 
     partial_times.append({
         "step": "Combining the images into eopatches",
@@ -229,7 +238,7 @@ def image2ts_pipeline(input_paths: List[Text], extension:str,
 
 if __name__ == "__main__":
     if len(sys.argv) < 3: # If no arguments are given, use the default values
-        input_json_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/0.VISTA/VISTA_workbench/src/modules/image2ts/resources/input.json"
+        input_json_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/0.VISTA/VISTA_workbench/src/modules/image2ts/resources/input_tmp.json"
         output_json_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/0.VISTA/VISTA_workbench/src/modules/image2ts/resources/output.json"
     else:
         input_json_path = sys.argv[1]
@@ -276,7 +285,8 @@ if __name__ == "__main__":
             os.environ["MINIO_ACCESS_KEY"] = id
             os.environ["MINIO_SECRET_KEY"] = key
             os.environ["MINIO_ENDPOINT_URL"] = url
-            os.environ["MINIO_SESSION_TOKEN"] = token
+            if token:
+                os.environ["MINIO_SESSION_TOKEN"] = token
 
         except Exception as e:
             raise ValueError(f"Access and secret keys are required if any path is on MinIO. Error: {e}")
