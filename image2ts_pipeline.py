@@ -155,9 +155,9 @@ def image2ts_pipeline(input_paths: List[Text], extension:str,
                 out_path=npy_dir)
     else:
         # 1. Unpack the TIF files
-        # unpack_tif(image_paths=parsed_paths,
-        #             outdir=npy_dir,
-        #             extension=extension,)
+        unpack_tif(image_paths=parsed_paths,
+                    outdir=npy_dir,
+                    extension=extension,)
         pass
     
     partial_times.append({
@@ -177,7 +177,7 @@ def image2ts_pipeline(input_paths: List[Text], extension:str,
 
     print("2. Combining the images into eopatches...")
     eopatches_dir = os.path.join(TMP_PATH, "lai_eopatch")
-    # combining_npys(npy_dir=npy_dir, out_path=eopatches_dir)
+    combining_npys(npy_dir=npy_dir, out_path=eopatches_dir)
 
     partial_times.append({
         "step": "Combining the images into eopatches",
