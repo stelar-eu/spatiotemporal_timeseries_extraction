@@ -56,15 +56,7 @@ def create_field_ts(eop_dir:str, out_path:str, fields_path:str):
     # Perform the process as described above
     lai_to_csv_field(eop_paths, fields_path=fields_path, outdir=out_path, n_jobs=16, delete_tmp=False)
 
-def cleanup(tmp_path:str='/tmp'):
-    """
-    Clean up the temporary directories created during the image2ts pipeline.
-    
-    Parameters
-    ----------
-    tmp_path : str
-        Path to the temporary directory. Default is '/tmp'.
-    """
+def cleanup(tmp_path:str):
     npy_dir = os.path.join(tmp_path, "npys")
     eops_dir = os.path.join(tmp_path, "lai_eopatch")
     patchlets_dir = os.path.join(tmp_path, "patchlets")
@@ -100,9 +92,9 @@ def check_ras(input_paths: List[Text]):
 
 def image2ts_pipeline(input_paths: List[Text], extension:str,
                       output_path:str, 
-                      field_path:str, 
-                      skip_pixel:bool,
-                      tmp_path:str='/tmp'):
+                      field_path:str,
+                      field_out_path:str, 
+                      skip_pixel:bool):
     """
     This function takes a directory of raster files and headers and converts them to time series dataset.
 
@@ -118,8 +110,6 @@ def image2ts_pipeline(input_paths: List[Text], extension:str,
         Path to the shapefile containing the boundaries of the agricultural fields. If not given, field-level time series will not be created.
     skip_pixel : bool
         Skip creating pixel-level time series
-    tmp_path : str
-        Path to the temporary directory for intermediate files. Default is '/tmp'.
     """
     total_start = time.time()
 
@@ -131,12 +121,12 @@ def image2ts_pipeline(input_paths: List[Text], extension:str,
     if extension not in ["RAS", "TIF", "TIFF"]:
         raise ValueError("Extension {} is not supported.".format(extension))
     
-    # Use the provided tmp_path instead of hardcoded '/tmp'
-    npy_dir = os.path.join(tmp_path, "npys")
+    TMP_PATH = '/tmp'
+    npy_dir = os.path.join(TMP_PATH, "npys")
     if not os.path.exists(npy_dir):
         os.makedirs(npy_dir)
 
-    partial_times = []
+    partial_times = {}
 
     start = time.time()
 
@@ -171,10 +161,7 @@ def image2ts_pipeline(input_paths: List[Text], extension:str,
                     extension=extension,)
         pass
     
-    partial_times.append({
-        "step": "Unpacking RAS files",
-        "runtime": time.time() - start
-    })
+    partial_times['ras_files_unpacking'] = time.time() - start
 
     npys = glob.glob(os.path.join(npy_dir, "*.npy"))
     n_images = len(npys)
@@ -187,158 +174,147 @@ def image2ts_pipeline(input_paths: List[Text], extension:str,
     start = time.time()
 
     print("2. Combining the images into eopatches...")
-    eopatches_dir = os.path.join(tmp_path, "lai_eopatch")
+    eopatches_dir = os.path.join(TMP_PATH, "lai_eopatch")
     combining_npys(npy_dir=npy_dir, out_path=eopatches_dir)
 
-    partial_times.append({
-        "step": "Combining the images into eopatches",
-        "runtime": time.time() - start
-    })
+    partial_times['eopatches_combining'] = time.time() - start
 
     # 3. Create pixel-level time series
     if pixel:
         start = time.time()
 
-        patchlets_dir = os.path.join(tmp_path, "patchlets")
+        patchlets_dir = os.path.join(TMP_PATH, "patchlets")
         px_path = os.path.join(output_path, "pixel_timeseries")
         print("3. Creating pixel-level time series...")
         create_px_ts(eop_dir=eopatches_dir,
                      patchlet_dir=patchlets_dir,
                      out_path=px_path)
         
-        partial_times.append({
-            "step": "Creating pixel-level time series",
-            "runtime": time.time() - start
-        })
+        partial_times['pixel_level_timeseries_creation'] = time.time() - start
 
     # 4. Create field-level time series
     if field:
         start = time.time()
 
-        field_ts_path = os.path.join(output_path, "field_timeseries")
+        field_ts_path = os.path.join(field_out_path, "field_timeseries")
         print("4. Creating field-level time series...")
         create_field_ts(eop_dir=eopatches_dir,
                         out_path=field_ts_path, 
                         fields_path=field_path)
         
-        partial_times.append({
-            "step": "Creating field-level time series",
-            "runtime": time.time() - start
-        })
+        partial_times['field_level_timeseries_creation'] = time.time() - start
+        
         
     # 5. Create the output json
     output_json = {
         "message": "Time series data has been created successfully.",
-        "output": [
-            {
-                "path": output_path,
-                "type": "Directory containing the time series data."
-            }
-        ],
+        "output": {
+            "timeseries": output_path,
+            "field_timeseries": field_out_path if field else None,
+        },
         "metrics": {
             "number_of_images": n_images,
             "image_width": width,
             "image_height": height,
             "total_runtime": time.time() - total_start,
             "partial_runtimes": partial_times,
-        }
+        },
+        "status": "success"
     }
 
     return output_json
         
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Image to Time Series Pipeline")
-    parser.add_argument("input_json", nargs="?", help="Path to the input JSON file")
-    parser.add_argument("output_json", nargs="?", help="Path to the output JSON file")
-    parser.add_argument("--TMPDIR", help="Path to the temporary directory", default="/tmp")
-    args = parser.parse_args()
 
-    # Set default paths if not provided
-    if args.input_json is None:
-        input_json_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/0.VISTA/VISTA_workbench/src/modules/image2ts/resources/input_tmp.json"
-    else:
-        input_json_path = args.input_json
+    try:
+        if len(sys.argv) < 3: # If no arguments are given, use the default values
+            input_json_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/0.VISTA/VISTA_workbench/src/modules/image2ts/resources/input_tmp.json"
+            output_json_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/0.VISTA/VISTA_workbench/src/modules/image2ts/resources/output.json"
+        else:
+            input_json_path = sys.argv[1]
+            output_json_path = sys.argv[2]
+
+        # Read and parse the input JSON file
+        with open(input_json_path, "r") as f:
+            input_json = json.load(f)
         
-    if args.output_json is None:
-        output_json_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/0.VISTA/VISTA_workbench/src/modules/image2ts/resources/output.json"
-    else:
-        output_json_path = args.output_json
+        # Handle the new input format which includes a "result" section
+        if "result" in input_json:
+            input_data = input_json["result"]
+        else:
+            input_data = input_json
 
-    # Read and parse the input JSON file
-    with open(input_json_path, "r") as f:
-        input_json = json.load(f)
-    
-    # Handle the new input format which includes a "result" section
-    if "result" in input_json:
-        input_data = input_json["result"]
-    else:
-        input_data = input_json
-
-    # Required parameters - now handling a list of image paths
-    try:
-        # The input images are now in result.input.images which is a list
-        input_paths = input_data["input"]["images"]
-        if not isinstance(input_paths, list):
-            input_paths = [input_paths]
-    except Exception as e:
-        raise ValueError(f"Input paths are required. See the documentation for the suggested input format. Error: {e}")
-    
-    try:
-        # The output path is now in result.output.timeseries
-        output_path = input_data["output"]["timeseries"]
-    except Exception as e:
-        raise ValueError(f"Output path is required. See the documentation for the suggested input format. Error: {e}")
-    
-    # Optional parameters
-    file_extension = input_data.get("parameters", {}).get("extension", "TIF")
-    field_path = input_data.get("parameters", {}).get("field_path", None)
-    skip_pixel = input_data.get("parameters", {}).get("skip_pixel", False)
-    
-    # Get temporary directory from JSON if provided, otherwise use command-line argument
-    tmp_path = input_data.get("parameters", {}).get("tmp_path", args.TMPDIR)
-    
-    # Create the tmp_path directory if it doesn't exist
-    if not os.path.exists(tmp_path):
-        os.makedirs(tmp_path, exist_ok=True)
-        print(f"Created temporary directory: {tmp_path}")
-    else:
-        print(f"Using existing temporary directory: {tmp_path}")
-
-    # Check if minio credentials are provided
-    if "minio" in input_data:
+        # Required parameters - now handling a list of image paths
         try:
-            id = input_data["minio"]["id"]
-            key = input_data["minio"]["key"]
-            token = input_data["minio"].get("skey")
-            url = input_data["minio"]["endpoint_url"]
-
-            os.environ["MINIO_ACCESS_KEY"] = id
-            os.environ["MINIO_SECRET_KEY"] = key
-            os.environ["MINIO_ENDPOINT_URL"] = url
-            if token:
-                os.environ["MINIO_SESSION_TOKEN"] = token
-
+            # The input images are now in result.input.images which is a list
+            input_paths = input_data["input"]["images"]
+            if not isinstance(input_paths, list):
+                input_paths = [input_paths]
         except Exception as e:
-            raise ValueError(f"Access and secret keys are required if any path is on MinIO. Error: {e}")
-
-    response = image2ts_pipeline(input_paths=input_paths,
-                                extension=file_extension,
-                                output_path=output_path,
-                                field_path=field_path,
-                                skip_pixel=skip_pixel,
-                                tmp_path=tmp_path)
-    
-    print(response)
-    
-    with open(output_json_path, "w") as f:
-        json.dump(response, f, indent=4)
+            raise ValueError(f"Input paths are required. See the documentation for the suggested input format. Error: {e}")
         
-    # Cleanup temporary directories
-    print("Cleaning up temporary directories...")
-    cleanup(tmp_path=tmp_path)
 
+        try:
+            field_path = input_data["input"].get("field_path", None)[0] if "field_path" in input_data["input"] else None
+        except Exception as e:
+            print("Field path is not provided, field-level time series will not be created.")
 
+        if "field_timeseries" in input_data["output"]:
+            field_out_path = input_data["output"].get("field_timeseries", None)
+        elif field_path is not None:
+            raise ValueError("Field path is provided but no output path for field-level time series is specified in the input JSON.")
 
+        try:
+            # The output path is now in result.output.timeseries
+            output_path = input_data["output"]["timeseries"]
+        except Exception as e:
+            raise ValueError(f"Output path is required. See the documentation for the suggested input format. Error: {e}")
+        
 
+        # Optional parameters
+        file_extension = input_data.get("parameters", {}).get("extension", "TIF")
+        # This is now fetched through inputs
+        #field_path = input_data.get("parameters", {}).get("field_path", None)
+        skip_pixel = input_data.get("parameters", {}).get("skip_pixel", False)
 
+        # Check if minio credentials are provided
+        if "minio" in input_data:
+            try:
+                id = input_data["minio"]["id"]
+                key = input_data["minio"]["key"]
+                token = input_data["minio"].get("skey")
+                url = input_data["minio"]["endpoint_url"]
+
+                os.environ["MINIO_ACCESS_KEY"] = id
+                os.environ["MINIO_SECRET_KEY"] = key
+                os.environ["MINIO_ENDPOINT_URL"] = url
+                if token:
+                    os.environ["MINIO_SESSION_TOKEN"] = token
+
+            except Exception as e:
+                raise ValueError(f"Access and secret keys are required if any path is on MinIO. Error: {e}")
+
+        response = image2ts_pipeline(input_paths=input_paths,
+                                    extension=file_extension,
+                                    output_path=output_path,
+                                    field_path=field_path,
+                                    field_out_path=field_out_path,
+                                    skip_pixel=skip_pixel)
+        
+        print(response)
+        
+        with open(output_json_path, "w") as f:
+            json.dump(response, f, indent=4)
+    
+    
+    except Exception as e:
+
+        error_response = {
+            "message": str(e),
+            "error": "An error occurred during the image to time series conversion.",
+            "status": "failed",
+        }
+        
+        with open(output_json_path, "w") as f:
+            json.dump(error_response, f, indent=4)
