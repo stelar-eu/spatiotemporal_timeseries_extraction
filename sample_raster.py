@@ -91,7 +91,7 @@ def main():
             "--bucket_name", "vista-bucket",
             "--prefix", "Pilot_B/UCB2/33UUP/DATA_FUSION/",
             "--suffix", ".TIF",
-            "--sample_size", "100",
+            "--sample_size", "1128",
             "--output_dir", "small",
             "--credentials_file", "resources/credentials.json"
         ])
@@ -127,82 +127,107 @@ def main():
 
     print(f"Found {len(files_to_process)} files to process.")
 
-    for minio_object in files_to_process:
+    # Window will be defined from the first image
+    window = None
+    actual_width = None
+    actual_height = None
+    
+    processed_count = 0
+    skipped_count = 0
+
+    for i, minio_object in enumerate(files_to_process, 1):
         object_name = minio_object.object_name
         base_name = os.path.basename(object_name)
         
+        # Check if output file already exists
+        name_part, orig_ext = os.path.splitext(base_name)
+        output_ext = args.suffix
+        if not output_ext.startswith('.'): 
+            if orig_ext.lower() == ('.' + output_ext.lower()): 
+                output_ext = orig_ext 
+            else: 
+                output_ext = '.' + output_ext
+        
+        sample_base_name = f"{name_part}_sample{output_ext}"
+        minio_output_object_name = os.path.join(
+            os.path.dirname(object_name), 
+            args.output_dir, 
+            sample_base_name
+        ).replace(os.sep, '/') # Ensure forward slashes for Minio
+        
+        # Check if output already exists
+        try:
+            minio_client.stat_object(bucket_name=args.bucket_name, object_name=minio_output_object_name)
+            print(f"[{i}/{len(files_to_process)}] Skipping {object_name} - output already exists: {minio_output_object_name}")
+            skipped_count += 1
+            continue
+        except Exception:
+            # Object doesn't exist, proceed with processing
+            pass
+        
         local_temp_download_path = os.path.join('/tmp', base_name)
 
-        print(f"Processing {object_name}...")
+        print(f"[{i}/{len(files_to_process)}] Processing {object_name}...")
         try:
-                minio_client.fget_object(
-                    bucket_name=args.bucket_name,
-                    object_name=object_name,
-                    file_path=local_temp_download_path
-                )
-                print(f"Downloaded to {local_temp_download_path}")
+            minio_client.fget_object(
+                bucket_name=args.bucket_name,
+                object_name=object_name,
+                file_path=local_temp_download_path
+            )
+            print(f"Downloaded to {local_temp_download_path}")
 
-                with rasterio.open(local_temp_download_path) as src:
-                    if src.width == 0 or src.height == 0:
-                        print(f"Skipping {base_name} as it has zero width or height.")
-                        continue
+            with rasterio.open(local_temp_download_path) as src:
+                if src.width == 0 or src.height == 0:
+                    print(f"Skipping {base_name} as it has zero width or height.")
+                    continue
 
+                # Define window from the first image if not already defined
+                if window is None:
                     window, actual_width, actual_height = get_sample_window(
                         src.height, src.width, args.sample_size
                     )
-                    
-                    data = src.read(window=window)
-                    
-                    window_transform = src.window_transform(window)
-                    new_profile = src.profile.copy()
-                    new_profile.update({
-                        'height': actual_height,
-                        'width': actual_width,
-                        'transform': window_transform,
-                        'compress': new_profile.get('compress', 'lzw') 
-                    })
+                    print(f"Using window: {window} (size: {actual_width}x{actual_height}) for all images")
 
-                    name_part, orig_ext = os.path.splitext(base_name)
-                    
-                    output_ext = args.suffix
-                    if not output_ext.startswith('.'): 
-                        if orig_ext.lower() == ('.' + output_ext.lower()): 
-                                output_ext = orig_ext 
-                        else: 
-                                output_ext = '.' + output_ext
-                    
-                    sample_base_name = f"{name_part}_sample{output_ext}"
-                    
-                    local_temp_sample_path = os.path.join('/tmp', sample_base_name)
+                # Use the pre-calculated window from the first image
+                
+                data = src.read(window=window)
+                
+                window_transform = src.window_transform(window)
+                new_profile = src.profile.copy()
+                new_profile.update({
+                    'height': actual_height,
+                    'width': actual_width,
+                    'transform': window_transform,
+                    'compress': new_profile.get('compress', 'lzw') 
+                })
+                
+                local_temp_sample_path = os.path.join('/tmp', sample_base_name)
 
-                    with rasterio.open(local_temp_sample_path, 'w', **new_profile) as dst:
-                        dst.write(data)
+                with rasterio.open(local_temp_sample_path, 'w', **new_profile) as dst:
+                    dst.write(data)
 
-                    # Construct Minio destination path for the sample
-                    minio_output_object_name = os.path.join(
-                        os.path.dirname(object_name), 
-                        args.output_dir, 
-                        sample_base_name
-                    ).replace(os.sep, '/') # Ensure forward slashes for Minio
-                    
-                    print(f"Uploading sample to Minio: {args.bucket_name}/{minio_output_object_name}")
-                    minio_client.fput_object(
-                        bucket_name=args.bucket_name,
-                        object_name=minio_output_object_name,
-                        file_path=local_temp_sample_path,
-                    )
-                    print(f"Uploaded sample to {args.bucket_name}/{minio_output_object_name}")
-                    
-                    # Clean up temporary files
-                    os.remove(local_temp_download_path)
-                    os.remove(local_temp_sample_path)
+                print(f"[{i}/{len(files_to_process)}] Uploading sample to Minio: {args.bucket_name}/{minio_output_object_name}")
+                minio_client.fput_object(
+                    bucket_name=args.bucket_name,
+                    object_name=minio_output_object_name,
+                    file_path=local_temp_sample_path,
+                )
+                print(f"[{i}/{len(files_to_process)}] Uploaded sample to {args.bucket_name}/{minio_output_object_name}")
+                
+                # Clean up temporary files
+                os.remove(local_temp_download_path)
+                os.remove(local_temp_sample_path)
+                
+                processed_count += 1
 
         except ValueError as ve: 
-            print(f"Skipping {base_name} due to value error during window calculation: {ve}", file=sys.stderr)
+            print(f"[{i}/{len(files_to_process)}] Skipping {base_name} due to value error during window calculation: {ve}", file=sys.stderr)
+            skipped_count += 1
         except Exception as e:
-            print(f"Error processing file {object_name}: {e}", file=sys.stderr)
+            print(f"[{i}/{len(files_to_process)}] Error processing file {object_name}: {e}", file=sys.stderr)
+            skipped_count += 1
 
-    print("Processing complete.")
+    print(f"Processing complete. Processed: {processed_count}, Skipped: {skipped_count}, Total: {len(files_to_process)}")
 
 if __name__ == "__main__":
     main()
