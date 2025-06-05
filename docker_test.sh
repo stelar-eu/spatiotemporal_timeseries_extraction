@@ -2,22 +2,23 @@
 
 docker pull alexdarancio7/stelar_image2ts:latest
 
-input_path="s3://klms/Pilot_B/UCB2/33TUN/DATA_FUSION"
-output_path="s3://klms/Pilot_B/UCB2/33TUN/TIMESERIES_EXTRACTION"
-extension='TIF'
-field_path="s3://klms/Pilot_B/UCB2/33TUN/FIELD_SEGMENTATION/OUTPUT/fields_2023_07_07.gpkg"
-MINIO_ACCESS_KEY="NT7UkSCviiEkKBbwjCQi"
-MINIO_SECRET_KEY="G2jJ8Ut0VycvOktMERClbxRd3zECVZy8HXFcdnK2"
-MINIO_ENDPOINT_URL=https://stelar-klms.eu:9000
+# Define paths relative to the script's location or a known base directory
+# Assuming 'resources' is in the same directory as the script
+HOST_RESOURCES_PATH="$(pwd)/resources"
+CONTAINER_RESOURCES_PATH="/app/resources" # Or any path expected inside the container
+
+# Ensure the host resources directory exists
+mkdir -p "$HOST_RESOURCES_PATH"
+# Ensure the expected input file exists (optional, for testing)
+# touch "$HOST_RESOURCES_PATH/input_tmp.json"
+
+# Define paths *inside* the container
+input_path="${CONTAINER_RESOURCES_PATH}/input_tmp.json"
+output_path="${CONTAINER_RESOURCES_PATH}/output.json"
 
 docker run -it \
 --network="host" \
+-v "${HOST_RESOURCES_PATH}:${CONTAINER_RESOURCES_PATH}" \
 alexdarancio7/stelar_image2ts \
---input_path $input_path \
--x $extension \
---output_path $output_path \
---field_path $field_path \
---skip_pixel \
---MINIO_ACCESS_KEY $MINIO_ACCESS_KEY \
---MINIO_SECRET_KEY $MINIO_SECRET_KEY  \
---MINIO_ENDPOINT_URL $MINIO_ENDPOINT_URL
+"$input_path" \
+"$output_path"

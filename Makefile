@@ -1,5 +1,5 @@
 DOCKER=docker
-IMGTAG=alexdarancio7/stelar_image2ts:latest
+IMGTAG=img.stelar.gr/stelar/ts-extract:latest
 IMGPATH=.
 DOCKERFILE=$(IMGPATH)/Dockerfile
 

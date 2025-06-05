@@ -10,12 +10,13 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 COPY requirements.txt ./
-COPY image2ts_pipeline.py ./
+COPY main.py ./
 COPY run.sh ./
 
 # Install any needed packages specified in requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install -r requirements.txt
 
+# Make run.sh executable
 RUN chmod +x run.sh
-ENTRYPOINT ["./run.sh"]
-#ENTRYPOINT ["ls", "-al"]
+ENTRYPOINT [ "./run.sh" ]
+# ENTRYPOINT ["python", "main.py"]

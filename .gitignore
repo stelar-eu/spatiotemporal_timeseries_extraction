@@ -1,8 +1,11 @@
+*sandbox*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
 
+server/
 resources/
 
 # C extensions
