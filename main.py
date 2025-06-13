@@ -30,7 +30,6 @@ def combining_npys(npy_dir:str, out_path:str):
 
     npy_paths = glob.glob(os.path.join(npy_dir, "*.npy"))
     mps = max_partition_size(npy_paths[0], MAX_RAM=int(4 * 1e9))
-
     bbox = load_bbox(os.path.join(npy_dir, "bbox.pkl"))
 
     combine_npys_into_eopatches(
@@ -130,17 +129,30 @@ def image2ts_pipeline(input_paths: List[Text], extension:str,
 
     start = time.time()
 
+            
+    # Handle wildcards in the path
+    for i, path in enumerate(input_paths):
+        if "*" in path:  # If the path contains a wildcard, we can use glob to find the files
+            print("The provided path contains a wildcard. Using glob to find the files...")
+            fs = get_filesystem(path)
+            new_paths = fs.glob(path, recursive=True)
+            # Remove the original path and add the new paths
+            input_paths.pop(i)
+            input_paths.extend(new_paths)
+            print("Found {} files with the given extension.".format(len(input_paths)))
+
     if extension == '.RAS':
         parsed_paths = [path for path in input_paths if path.endswith((".RAS", '.RHD'))]
     else:
         parsed_paths = [path for path in input_paths if path.endswith(extension)]
 
-    # If no input files are found then the provided path might be a directory, so let's list the files in that directory with the given extension
+    # If no input file are found then the provided path might be a directory, so let's list the files in that directory with the given extension
     if len(parsed_paths) == 0:
         print("No input files found. Checking if the provided path is a directory...")
         path = input_paths[0]
         fs = get_filesystem(path)
-        if fs.isdir(path):
+        # If it's purely a directory, we can list the files in that directory
+        if fs.isdir(path): 
             print("The provided path is a directory. Listing the files in that directory...")
             parsed_paths = fs.glob(os.path.join(path, "*{}".format(extension)))
         else:
@@ -161,7 +173,7 @@ def image2ts_pipeline(input_paths: List[Text], extension:str,
                     extension=extension,)
         pass
     
-    partial_times['ras_files_unpacking'] = time.time() - start
+    partial_times['files_unpacking'] = time.time() - start
 
     npys = glob.glob(os.path.join(npy_dir, "*.npy"))
     n_images = len(npys)
@@ -175,7 +187,7 @@ def image2ts_pipeline(input_paths: List[Text], extension:str,
 
     print("2. Combining the images into eopatches...")
     eopatches_dir = os.path.join(TMP_PATH, "lai_eopatch")
-    combining_npys(npy_dir=npy_dir, out_path=eopatches_dir)
+    # combining_npys(npy_dir=npy_dir, out_path=eopatches_dir)
 
     partial_times['eopatches_combining'] = time.time() - start
 
@@ -229,8 +241,8 @@ if __name__ == "__main__":
 
     try:
         if len(sys.argv) < 3: # If no arguments are given, use the default values
-            input_json_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/0.VISTA/VISTA_workbench/src/modules/image2ts/resources/input_tmp.json"
-            output_json_path = "/home/jens/ownCloud/Documents/3.Werk/0.TUe_Research/0.STELAR/0.VISTA/VISTA_workbench/src/modules/image2ts/resources/output.json"
+            input_json_path = "resources/input.json"
+            output_json_path = "resources/output.json"
         else:
             input_json_path = sys.argv[1]
             output_json_path = sys.argv[2]
@@ -256,7 +268,7 @@ if __name__ == "__main__":
         
 
         try:
-            field_path = input_data["input"].get("field_path", None)[0] if "field_path" in input_data["input"] else None
+            field_path = input_data["input"].get("field_path", None) if "field_path" in input_data["input"] else None
         except Exception as e:
             print("Field path is not provided, field-level time series will not be created.")
 
@@ -315,6 +327,8 @@ if __name__ == "__main__":
             "error": "An error occurred during the image to time series conversion.",
             "status": "failed",
         }
+
+        print(error_response)
         
         with open(output_json_path, "w") as f:
             json.dump(error_response, f, indent=4)

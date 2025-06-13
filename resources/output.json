@@ -1,25 +1,19 @@
 {
     "message": "Time series data has been created successfully.",
-    "output": [
-        {
-            "path": "s3://klms/Pilot_B/UCB2/33UUP/TIMESERIES_EXTRACTION/new_fields",
-            "type": "Directory containing the time series data."
-        }
-    ],
+    "output": {
+        "timeseries": "s3://vista-bucket/Pilot_B/UCB2/30TYQ/TIMESERIES_EXTRACTION",
+        "field_timeseries": "s3://vista-bucket/Pilot_B/UCB2/30TYQ/TIMESERIES_EXTRACTION/field_timeseries-S2B_30TYQ2BP_220614_R_t08"
+    },
     "metrics": {
-        "number_of_images": 107,
+        "number_of_images": 36,
         "image_width": 10980,
         "image_height": 10980,
-        "total_runtime": 1.0301742553710938,
-        "partial_runtimes": [
-            {
-                "step": "Unpacking RAS files",
-                "runtime": 0.541877031326294
-            },
-            {
-                "step": "Combining the images into eopatches",
-                "runtime": 2.0503997802734375e-05
-            }
-        ]
-    }
+        "total_runtime": 4086.1154441833496,
+        "partial_runtimes": {
+            "files_unpacking": 3.494774103164673,
+            "eopatches_combining": 2.6941299438476562e-05,
+            "field_level_timeseries_creation": 4081.99596619606
+        }
+    },
+    "status": "success"
 }

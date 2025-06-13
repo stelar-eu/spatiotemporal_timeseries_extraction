@@ -12,11 +12,13 @@ WORKDIR /app
 COPY requirements.txt ./
 COPY main.py ./
 COPY run.sh ./
+COPY resources/ ./resources/
 
 # Install any needed packages specified in requirements.txt
 RUN pip install -r requirements.txt
 
 # Make run.sh executable
 RUN chmod +x run.sh
+
 ENTRYPOINT [ "./run.sh" ]
 # ENTRYPOINT ["python", "main.py"]

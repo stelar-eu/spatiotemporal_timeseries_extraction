@@ -89,8 +89,8 @@ def main():
         print("No arguments provided. Running with default parameters.")
         sys.argv.extend([
             "--bucket_name", "vista-bucket",
-            "--prefix", "Pilot_B/UCB2/33UUP/DATA_FUSION/",
-            "--suffix", ".TIF",
+            "--prefix", "Pilot_B/UCB2/30TYQ/06/",
+            "--suffix", "IC.TIF",
             "--sample_size", "1128",
             "--output_dir", "small",
             "--credentials_file", "resources/credentials.json"
@@ -142,11 +142,9 @@ def main():
         # Check if output file already exists
         name_part, orig_ext = os.path.splitext(base_name)
         output_ext = args.suffix
-        if not output_ext.startswith('.'): 
-            if orig_ext.lower() == ('.' + output_ext.lower()): 
-                output_ext = orig_ext 
-            else: 
-                output_ext = '.' + output_ext
+
+        if "." in output_ext:
+            output_ext = "." + output_ext.split('.')[-1]
         
         sample_base_name = f"{name_part}_sample{output_ext}"
         minio_output_object_name = os.path.join(
