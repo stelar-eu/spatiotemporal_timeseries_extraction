@@ -187,7 +187,7 @@ def image2ts_pipeline(input_paths: List[Text], extension:str,
 
     print("2. Combining the images into eopatches...")
     eopatches_dir = os.path.join(TMP_PATH, "lai_eopatch")
-    # combining_npys(npy_dir=npy_dir, out_path=eopatches_dir)
+    combining_npys(npy_dir=npy_dir, out_path=eopatches_dir)
 
     partial_times['eopatches_combining'] = time.time() - start
 
@@ -222,7 +222,6 @@ def image2ts_pipeline(input_paths: List[Text], extension:str,
         "message": "Time series data has been created successfully.",
         "output": {
             "timeseries": output_path,
-            "field_timeseries": field_out_path if field else None,
         },
         "metrics": {
             "number_of_images": n_images,
@@ -233,6 +232,9 @@ def image2ts_pipeline(input_paths: List[Text], extension:str,
         },
         "status": "success"
     }
+
+    if field:
+        output_json["output"]["field_timeseries"] = field_out_path
 
     return output_json
         
@@ -272,6 +274,7 @@ if __name__ == "__main__":
         except Exception as e:
             print("Field path is not provided, field-level time series will not be created.")
 
+        field_out_path = None
         if "field_timeseries" in input_data["output"]:
             field_out_path = input_data["output"].get("field_timeseries", None)
         elif field_path is not None:
