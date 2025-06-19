@@ -218,9 +218,7 @@ def image2ts_pipeline(input_paths: List[Text], extension:str,
     # 5. Create the output json
     output_json = {
         "message": "Time series data has been created successfully.",
-        "output": {
-            "timeseries": output_path,
-        },
+        "output": {},
         "metrics": {
             "number_of_images": n_images,
             "image_width": width,
@@ -230,7 +228,8 @@ def image2ts_pipeline(input_paths: List[Text], extension:str,
         },
         "status": "success"
     }
-
+    if pixel:
+        output_json["output"]["pixel_timeseries"] = output_path
     if field:
         output_json["output"]["field_timeseries"] = field_out_path
 
@@ -280,7 +279,7 @@ if __name__ == "__main__":
 
         try:
             # The output path is now in result.output.timeseries
-            output_path = input_data["output"]["timeseries"]
+            output_path = input_data["output"]["pixel_timeseries"]
         except Exception as e:
             raise ValueError(f"Output path is required. See the documentation for the suggested input format. Error: {e}")
         
