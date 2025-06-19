@@ -207,11 +207,9 @@ def image2ts_pipeline(input_paths: List[Text], extension:str,
     # 4. Create field-level time series
     if field:
         start = time.time()
-
-        field_ts_path = os.path.join(field_out_path, "field_timeseries")
         print("4. Creating field-level time series...")
         create_field_ts(eop_dir=eopatches_dir,
-                        out_path=field_ts_path, 
+                        out_path=field_out_path, 
                         fields_path=field_path)
         
         partial_times['field_level_timeseries_creation'] = time.time() - start
@@ -270,7 +268,7 @@ if __name__ == "__main__":
         
 
         try:
-            field_path = input_data["input"].get("field_path", None) if "field_path" in input_data["input"] else None
+            field_path = input_data["input"]["field_path"][0] if isinstance(input_data["input"].get("field_path"), list) else None
         except Exception as e:
             print("Field path is not provided, field-level time series will not be created.")
 
