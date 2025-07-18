@@ -220,10 +220,7 @@ def image2ts_pipeline(input_paths: List[Text], extension:str,
     # 5. Create the output json
     output_json = {
         "message": "Time series data has been created successfully.",
-        "output": {
-            "timeseries": px_out,
-            "field_timeseries": field_out_path if field else None,
-        },
+        "output": {},
         "metrics": {
             "number_of_images": n_images,
             "image_width": width,
@@ -233,6 +230,10 @@ def image2ts_pipeline(input_paths: List[Text], extension:str,
         },
         "status": "success"
     }
+    if pixel:
+        output_json["output"]["pixel_timeseries"] = px_out
+    if field:
+        output_json["output"]["field_timeseries"] = field_out_path
 
     return output_json
         
@@ -268,10 +269,11 @@ if __name__ == "__main__":
         
 
         try:
-            field_path = input_data["input"].get("field_path", None) if "field_path" in input_data["input"] else None
+            field_path = input_data["input"]["field_path"][0] if isinstance(input_data["input"].get("field_path"), list) else None
         except Exception as e:
             print("Field path is not provided, field-level time series will not be created.")
 
+        field_out_path = None
         if "field_timeseries" in input_data["output"]:
             field_out_path = input_data["output"].get("field_timeseries", None)
         elif field_path is not None:
@@ -279,7 +281,7 @@ if __name__ == "__main__":
 
         try:
             # The output path is now in result.output.timeseries
-            px_out = input_data["output"]["timeseries"]
+            px_out = input_data["output"]["pixel_timeseries"]
         except Exception as e:
             raise ValueError(f"Output path is required. See the documentation for the suggested input format. Error: {e}")
         
