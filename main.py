@@ -6,9 +6,9 @@ import rasterio.transform
 from sentinelhub import CRS
 from typing import List, Text
 from stelar_spatiotemporal.preprocessing.preprocessing import combine_npys_into_eopatches, max_partition_size, unpack_tif
-from stelar_spatiotemporal.preprocessing.vista_preprocessing import unpack_vista_unzipped
-from stelar_spatiotemporal.preprocessing.timeseries import lai_to_csv_px, lai_to_csv_field
 from stelar_spatiotemporal.lib import load_bbox, get_filesystem, save_bbox
+from src.vista_preprocessing import unpack_vista_unzipped
+from src.timeseries import lai_to_csv_px, lai_to_csv_field
 import argparse
 import rasterio
 from rasterio.io import MemoryFile
@@ -38,13 +38,13 @@ def combining_npys(npy_dir:str, out_path:str):
                             bbox=bbox,
                             partition_size=mps,
                             delete_after=False)
-    
-def create_px_ts(eop_dir:str, patchlet_dir:str, out_path:str):
+
+def create_px_ts(eop_dir:str, patchlet_dir:str, outpath:str):
     eop_paths = glob.glob(os.path.join(eop_dir, "partition_*"))
     if len(eop_paths) == 0: eop_paths = [eop_dir]
 
     # Turn the LAI values into a csv file
-    lai_to_csv_px(eop_paths, patchlet_dir=patchlet_dir, outdir=out_path, delete_patchlets=False)
+    lai_to_csv_px(eop_paths, patchlet_dir=patchlet_dir, outdir=px_out, delete_patchlets=False)
 
 def create_field_ts(eop_dir:str, out_path:str, fields_path:str):
     eop_paths = glob.glob(os.path.join(eop_dir, "partition_*"))
@@ -53,7 +53,7 @@ def create_field_ts(eop_dir:str, out_path:str, fields_path:str):
     eop_paths.sort()
 
     # Perform the process as described above
-    lai_to_csv_field(eop_paths, fields_path=fields_path, outdir=out_path, n_jobs=16, delete_tmp=False)
+    lai_to_csv_field(eop_paths, fields_path=fields_path, outpath=out_path, n_jobs=16, delete_tmp=False)
 
 def cleanup(tmp_path:str):
     npy_dir = os.path.join(tmp_path, "npys")
@@ -90,7 +90,7 @@ def check_ras(input_paths: List[Text]):
     return ras_path_filtered, rhd_path_filtered
 
 def image2ts_pipeline(input_paths: List[Text], extension:str,
-                      output_path:str, 
+                      px_out:str, 
                       field_path:str,
                       field_out_path:str, 
                       skip_pixel:bool):
@@ -103,10 +103,12 @@ def image2ts_pipeline(input_paths: List[Text], extension:str,
         List of paths to the input files.
     extension : str
         Extension of the input files. Default is 'TIF'.
-    output_path : str
-        Path to the folder where the output files will be saved.
+    px_out : str
+        Path to the folder where the pixel-level output files will be saved.
     field_path : str
         Path to the shapefile containing the boundaries of the agricultural fields. If not given, field-level time series will not be created.
+    field_out_path : str
+        Path to the folder where the field-level output files will be saved. 
     skip_pixel : bool
         Skip creating pixel-level time series
     """
@@ -187,7 +189,7 @@ def image2ts_pipeline(input_paths: List[Text], extension:str,
 
     print("2. Combining the images into eopatches...")
     eopatches_dir = os.path.join(TMP_PATH, "lai_eopatch")
-    # combining_npys(npy_dir=npy_dir, out_path=eopatches_dir)
+    combining_npys(npy_dir=npy_dir, out_path=eopatches_dir)
 
     partial_times['eopatches_combining'] = time.time() - start
 
@@ -196,22 +198,20 @@ def image2ts_pipeline(input_paths: List[Text], extension:str,
         start = time.time()
 
         patchlets_dir = os.path.join(TMP_PATH, "patchlets")
-        px_path = os.path.join(output_path, "pixel_timeseries")
         print("3. Creating pixel-level time series...")
         create_px_ts(eop_dir=eopatches_dir,
                      patchlet_dir=patchlets_dir,
-                     out_path=px_path)
-        
+                     outpath=px_out)
+
         partial_times['pixel_level_timeseries_creation'] = time.time() - start
 
     # 4. Create field-level time series
     if field:
         start = time.time()
 
-        field_ts_path = os.path.join(field_out_path, "field_timeseries")
         print("4. Creating field-level time series...")
         create_field_ts(eop_dir=eopatches_dir,
-                        out_path=field_ts_path, 
+                        out_path=field_out_path, 
                         fields_path=field_path)
         
         partial_times['field_level_timeseries_creation'] = time.time() - start
@@ -221,7 +221,7 @@ def image2ts_pipeline(input_paths: List[Text], extension:str,
     output_json = {
         "message": "Time series data has been created successfully.",
         "output": {
-            "timeseries": output_path,
+            "timeseries": px_out,
             "field_timeseries": field_out_path if field else None,
         },
         "metrics": {
@@ -279,7 +279,7 @@ if __name__ == "__main__":
 
         try:
             # The output path is now in result.output.timeseries
-            output_path = input_data["output"]["timeseries"]
+            px_out = input_data["output"]["timeseries"]
         except Exception as e:
             raise ValueError(f"Output path is required. See the documentation for the suggested input format. Error: {e}")
         
@@ -309,7 +309,7 @@ if __name__ == "__main__":
 
         response = image2ts_pipeline(input_paths=input_paths,
                                     extension=file_extension,
-                                    output_path=output_path,
+                                    px_out=px_out,
                                     field_path=field_path,
                                     field_out_path=field_out_path,
                                     skip_pixel=skip_pixel)

@@ -1,18 +1,19 @@
 {
     "message": "Time series data has been created successfully.",
     "output": {
-        "timeseries": "s3://vista-bucket/Pilot_B/UCB2/30TYQ/TIMESERIES_EXTRACTION",
-        "field_timeseries": "s3://vista-bucket/Pilot_B/UCB2/30TYQ/TIMESERIES_EXTRACTION/field_timeseries-S2B_30TYQ2BP_220614_R_t08"
+        "timeseries": "s3://vista-bucket/Pilot_B/UCB2/30TYQ/TIMESERIES_EXTRACTION/lai_pixel_timeseries-S2B_30TYQ2BP_220614_R_t08_small",
+        "field_timeseries": "s3://vista-bucket/Pilot_B/UCB2/30TYQ/TIMESERIES_EXTRACTION/field_timeseries-S2B_30TYQ2BP_220614_R_t08_small.csv"
     },
     "metrics": {
-        "number_of_images": 36,
-        "image_width": 10980,
-        "image_height": 10980,
-        "total_runtime": 4086.1154441833496,
+        "number_of_images": 8,
+        "image_width": 1128,
+        "image_height": 1128,
+        "total_runtime": 47.3379123210907,
         "partial_runtimes": {
-            "files_unpacking": 3.494774103164673,
-            "eopatches_combining": 2.6941299438476562e-05,
-            "field_level_timeseries_creation": 4081.99596619606
+            "files_unpacking": 18.084314107894897,
+            "eopatches_combining": 0.0561981201171875,
+            "pixel_level_timeseries_creation": 18.107524633407593,
+            "field_level_timeseries_creation": 11.08828854560852
         }
     },
     "status": "success"
