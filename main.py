@@ -32,8 +32,7 @@ def combining_npys(npy_dir:str, out_path:str):
     mps = max_partition_size(npy_paths[0], MAX_RAM=int(4 * 1e9))
     bbox = load_bbox(os.path.join(npy_dir, "bbox.pkl"))
 
-    combine_npys_into_eopatches(
-        npy_paths=npy_paths, outpath=out_path,
+    combine_npys_into_eopatches(npy_paths=npy_paths, outpath=out_path,
                             feature_name="LAI",
                             bbox=bbox,
                             partition_size=mps,
@@ -269,7 +268,14 @@ if __name__ == "__main__":
         
 
         try:
-            field_path = input_data["input"]["field_path"][0] if isinstance(input_data["input"].get("field_path"), list) else None
+            if isinstance(input_data["input"].get("field_path"), str):
+                # If field_path is a string, use it directly
+                field_path = input_data["input"]["field_path"]
+            elif isinstance(input_data["input"].get("field_path"), list):
+                # If field_path is already a list, use it as is
+                field_path = input_data["input"]["field_path"][0]
+            else:
+                field_path = None
         except Exception as e:
             print("Field path is not provided, field-level time series will not be created.")
 
