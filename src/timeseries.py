@@ -239,29 +239,37 @@ def combine_timeseries_px(csv_paths:list, startdate: dt.datetime, enddate: dt.da
         return None
 
 # Load a file of fields if possible
-def load_fields(field_path:str, nrows:int = None, min_area:int = 0, max_area:int = 500000):
+def load_fields(field_path:str, nrows:int = None, min_area:int = 0, max_area:int = None):
     # Get the filesystem
     filesystem = get_filesystem(field_path)
 
     # Read fields with fiona and store as a geopandas dataframe
     lines = []
     c = 0
+    ids = []
+    skipped_fields = 0
     with fiona.open(filesystem.open(field_path, 'rb')) as fields_file:
-        for line in fields_file:
+        for i, line in enumerate(fields_file):
             # Get feature
             feature = line['geometry']
 
             # Get area
             area = Polygon(feature['coordinates'][0]).area
 
-            if area > min_area and area < max_area:
+            if area > min_area and (max_area is None or area < max_area):
                 lines.append(line)
                 c += 1
+                ids.append(i)
+            else:
+                skipped_fields += 1
 
             if nrows is not None and c >= nrows:
                 break
 
         df = gpd.GeoDataFrame.from_features(lines, crs=fields_file.crs)
+        df.index = ids
+
+    print(f"Loaded {c} fields with area between {min_area} and {max_area} m2, skipped {skipped_fields} fields")
 
     return df
 
@@ -331,6 +339,9 @@ def field_to_csv(fields:gpd.GeoDataFrame, tiff_path:str,
     # Remove columns with only nans
     df = df.dropna(axis=1, how="all")
 
+    # Remove rows with only nans
+    df = df.dropna(axis=0, how="all")
+
     # Transpose the df to enable iterative appending
     df = df.T
 
@@ -344,20 +355,20 @@ def field_to_csv(fields:gpd.GeoDataFrame, tiff_path:str,
     df_to_csv_manual(df, outpath, index=True, mode=wmode, header=(wmode=="w"))
 
 
-def lai_to_csv_field(eop_paths:list, fields_path:str, outpath:str, nfields:int = None, n_jobs:int = 8, delete_tmp:bool=True, tmpdir:str = "/tmp"):
+def lai_to_csv_field(eop_paths:list, fields_path:str, outpath:str, nfields:int = None, n_jobs:int = 8, delete_tmp:bool=False, tmpdir:str = "/tmp"):
         # Make temporary tiff dir
         tif_dir = os.path.join(tmpdir, "tiffs")
         os.makedirs(tif_dir, exist_ok=True)
 
         # Load the fields
         print("Loading fields", end="\r")
-        minarea = 1000 # 1 km2
-        maxarea = 500_000 # 50 hectares
+        # minarea = 1000 # 1 km2
+        # maxarea = 500_000 # 50 hectares
 
         if nfields is None:
-                fields = load_fields(fields_path, min_area=minarea, max_area=maxarea) 
+                fields = load_fields(fields_path)
         else:
-                fields = load_fields(fields_path, nrows=nfields, min_area=minarea, max_area=maxarea)
+                fields = load_fields(fields_path, nrows=nfields)
 
         for i, eop_path in enumerate(eop_paths):
                 print(f"Processing eopatch {i+1}/{len(eop_paths)}")
