@@ -18,7 +18,7 @@ COPY src/ ./src/
 # Install any needed packages specified in requirements.txt
 RUN pip install -r requirements.txt
 
-#ENTRYPOINT ["python", "main.py", "resources/input.json", "resources/output.json"]
+# ENTRYPOINT ["python", "-u", "main.py", "resources/input.json", "resources/output.json"]
 
 # Make run.sh executable
 RUN chmod +x run.sh

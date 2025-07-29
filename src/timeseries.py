@@ -243,48 +243,45 @@ def load_fields(field_path:str, nrows:int = None, min_area:int = 0, max_area:int
     # Get the filesystem
     filesystem = get_filesystem(field_path)
 
-    tmpdir = os.environ.get("TMPDIR", "/tmp")
-
-    tmp_fieldpath = os.path.join(tmpdir, os.path.basename(field_path))
-
-    # Download the file if it is on a remote filesystem
-    filesystem.copy(field_path, tmp_fieldpath, overwrite=False)
-
-    # Read the fields with geopandas
-    df = gpd.read_file(tmp_fieldpath, rows=nrows)
-
-    # Filter the fields by area
-    if min_area > 0:
-        df = df[df.geometry.area > min_area]
-    if max_area is not None:
-        df = df[df.geometry.area < max_area]
+    # Copy and read the fields with geopandas
+    # tmpdir = os.environ.get("TMPDIR", "/tmp")
+    # tmp_fieldpath = os.path.join(tmpdir, os.path.basename(field_path))
+    # # Download the file if it is on a remote filesystem
+    # filesystem.copy(field_path, tmp_fieldpath, overwrite=False)
+    # # Read the fields with geopandas
+    # df = gpd.read_file(tmp_fieldpath, rows=nrows)
+    # # Filter the fields by area
+    # if min_area > 0:
+    #     df = df[df.geometry.area > min_area]
+    # if max_area is not None:
+    #     df = df[df.geometry.area < max_area]
 
     # Read fields with fiona and store as a geopandas dataframe
-    # lines = []
-    # c = 0
-    # ids = []
-    # skipped_fields = 0
-    # with fiona.open(filesystem.open(field_path, 'rb')) as fields_file:
-    #     for i, line in enumerate(fields_file):
-    #         # Get feature
-    #         feature = line['geometry']
+    lines = []
+    c = 0
+    ids = []
+    skipped_fields = 0
+    with fiona.open(filesystem.open(field_path, 'rb')) as fields_file:
+        for i, line in enumerate(fields_file):
+            # Get feature
+            feature = line['geometry']
 
-    #         # Get area
-    #         area = Polygon(feature['coordinates'][0]).area
+            # Get area
+            area = Polygon(feature['coordinates'][0]).area
 
-    #         if area > min_area and (max_area is None or area < max_area):
-    #             lines.append(line)
-    #             c += 1
-    #             ids.append(i)
-    #         else:
-    #             skipped_fields += 1
+            if area > min_area and (max_area is None or area < max_area):
+                lines.append(line)
+                c += 1
+                ids.append(i)
+            else:
+                skipped_fields += 1
 
-    #         if nrows is not None and c >= nrows:
-    #             break
+            if nrows is not None and c >= nrows:
+                break
 
-    #     df = gpd.GeoDataFrame.from_features(lines, crs=fields_file.crs)
-    #     df.index = ids
-    # print(f"Loaded {c} fields with area between {min_area} and {max_area} m2, skipped {skipped_fields} fields")
+        df = gpd.GeoDataFrame.from_features(lines, crs=fields_file.crs)
+        df.index = ids
+    print(f"Loaded {c} fields with area between {min_area} and {max_area} m2, skipped {skipped_fields} fields")
 
     return df
 
