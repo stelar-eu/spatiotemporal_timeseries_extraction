@@ -1,5 +1,18 @@
 {
-    "message": "bbox_path does not exist",
-    "error": "An error occurred during the image to time series conversion.",
-    "status": "failed"
+    "message": "Time series data has been created successfully.",
+    "output": {
+        "field_timeseries": "s3://vista-bucket/Pilot_B/UCB2/33UVP/TIMESERIES_EXTRACTION/field_timeseries-S2B_33UVP_2022.csv"
+    },
+    "metrics": {
+        "number_of_images": 61,
+        "image_width": 10980,
+        "image_height": 10980,
+        "total_runtime": 13296.993314504623,
+        "partial_runtimes": {
+            "files_unpacking": 3340.4497640132904,
+            "eopatches_combining": 236.92268681526184,
+            "field_level_timeseries_creation": 9719.549104213715
+        }
+    },
+    "status": "success"
 }

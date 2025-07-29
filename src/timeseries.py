@@ -340,7 +340,7 @@ def field_to_csv(fields:gpd.GeoDataFrame, tiff_path:str,
     df = df.dropna(axis=1, how="all")
 
     # Remove rows with only nans
-    df = df.dropna(axis=0, how="all")
+    # df = df.dropna(axis=0, how="all")
 
     # Transpose the df to enable iterative appending
     df = df.T
