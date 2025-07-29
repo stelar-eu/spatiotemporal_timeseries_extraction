@@ -1,17 +1,17 @@
 {
     "message": "Time series data has been created successfully.",
     "output": {
-        "field_timeseries": "s3://vista-bucket/Pilot_B/UCB2/33UVP/TIMESERIES_EXTRACTION/field_timeseries-S2B_33UVP_2022.csv"
+        "field_timeseries": "s3://vista-bucket/Pilot_B/UCB2/30TYQ/TIMESERIES_EXTRACTION/field_timeseries-S2B_30TYQ2BP_220614_R_t08_small.csv"
     },
     "metrics": {
-        "number_of_images": 61,
-        "image_width": 10980,
-        "image_height": 10980,
-        "total_runtime": 13296.993314504623,
+        "number_of_images": 8,
+        "image_width": 1128,
+        "image_height": 1128,
+        "total_runtime": 12.331119060516357,
         "partial_runtimes": {
-            "files_unpacking": 3340.4497640132904,
-            "eopatches_combining": 236.92268681526184,
-            "field_level_timeseries_creation": 9719.549104213715
+            "files_unpacking": 4.269152641296387,
+            "eopatches_combining": 0.05285525321960449,
+            "field_level_timeseries_creation": 8.00804615020752
         }
     },
     "status": "success"
