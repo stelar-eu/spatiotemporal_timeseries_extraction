@@ -36,7 +36,7 @@ def combining_npys(npy_dir:str, out_path:str):
                             feature_name="LAI",
                             bbox=bbox,
                             partition_size=mps,
-                            delete_after=False)
+                            delete_after=True)
 
 def create_px_ts(eop_dir:str, patchlet_dir:str, outpath:str):
     eop_paths = glob.glob(os.path.join(eop_dir, "partition_*"))
@@ -52,7 +52,7 @@ def create_field_ts(eop_dir:str, out_path:str, fields_path:str):
     eop_paths.sort()
 
     # Perform the process as described above
-    lai_to_csv_field(eop_paths, fields_path=fields_path, outpath=out_path, n_jobs=16, delete_tmp=False)
+    lai_to_csv_field(eop_paths, fields_path=fields_path, outpath=out_path, n_jobs=16, delete_tmp=True)
 
 def cleanup(tmp_path:str):
     npy_dir = os.path.join(tmp_path, "npys")
@@ -92,7 +92,8 @@ def image2ts_pipeline(input_paths: List[Text], extension:str,
                       px_out:str, 
                       field_path:str,
                       field_out_path:str, 
-                      skip_pixel:bool):
+                      skip_pixel:bool
+                      ):
     """
     This function takes a directory of raster files and headers and converts them to time series dataset.
 
@@ -173,7 +174,7 @@ def image2ts_pipeline(input_paths: List[Text], extension:str,
                     outdir=npy_dir,
                     extension=extension,)
         pass
-    
+
     partial_times['files_unpacking'] = time.time() - start
 
     npys = glob.glob(os.path.join(npy_dir, "*.npy"))
