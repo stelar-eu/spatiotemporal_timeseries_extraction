@@ -5,7 +5,8 @@ import sys
 import rasterio.transform
 from sentinelhub import CRS
 from typing import List, Text
-from stelar_spatiotemporal.preprocessing.preprocessing import combine_npys_into_eopatches, max_partition_size, unpack_tif
+from stelar_spatiotemporal.preprocessing.preprocessing import max_partition_size, unpack_tif
+from src.preprocessing import combine_npys_into_eopatches
 from stelar_spatiotemporal.lib import load_bbox, get_filesystem, save_bbox
 from src.vista_preprocessing import unpack_vista_unzipped
 from src.timeseries import lai_to_csv_px, lai_to_csv_field
