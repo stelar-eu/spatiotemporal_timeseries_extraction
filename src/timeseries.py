@@ -6,7 +6,7 @@ import pandas as pd
 import tqdm
 import glob
 import shutil
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, box
 import rasterio
 from rasterio.mask import mask as mask_func
 import geopandas as gpd
@@ -244,44 +244,53 @@ def load_fields(field_path:str, nrows:int = None, min_area:int = 0, max_area:int
     filesystem = get_filesystem(field_path)
 
     # Copy and read the fields with geopandas
-    # tmpdir = os.environ.get("TMPDIR", "/tmp")
-    # tmp_fieldpath = os.path.join(tmpdir, os.path.basename(field_path))
-    # # Download the file if it is on a remote filesystem
-    # filesystem.copy(field_path, tmp_fieldpath, overwrite=False)
-    # # Read the fields with geopandas
-    # df = gpd.read_file(tmp_fieldpath, rows=nrows)
-    # # Filter the fields by area
-    # if min_area > 0:
-    #     df = df[df.geometry.area > min_area]
-    # if max_area is not None:
-    #     df = df[df.geometry.area < max_area]
+    tmpdir = os.environ.get("TMPDIR", "/tmp")
+    tmp_fieldpath = os.path.join(tmpdir, os.path.basename(field_path))
+
+    if not os.path.exists(tmp_fieldpath):
+        # Download the file if it is on a remote filesystem
+        filesystem.get(field_path, tmp_fieldpath)
+
+    # Read the fields with geopandas
+    df = gpd.read_file(tmp_fieldpath, rows=nrows)
+
+    # Filter the fields by area
+    if min_area > 0:
+        df = df[df.geometry.area > min_area]
+    if max_area is not None:
+        df = df[df.geometry.area < max_area]
+
+    # CRS and bbox check
+    crs = df.crs
+    bbox = df.total_bounds
+    print("Loaded fields with CRS:", crs, "and bbox:", bbox)
 
     # Read fields with fiona and store as a geopandas dataframe
-    lines = []
-    c = 0
-    ids = []
-    skipped_fields = 0
-    with fiona.open(filesystem.open(field_path, 'rb')) as fields_file:
-        for i, line in enumerate(fields_file):
-            # Get feature
-            feature = line['geometry']
+    # lines = []
+    # c = 0
+    # ids = []
+    # skipped_fields = 0
+    # with fiona.open(filesystem.open(field_path, 'rb')) as fields_file:
+    #     for i, line in enumerate(fields_file):
+    #         # Get feature
+    #         feature = line['geometry']
 
-            # Get area
-            area = Polygon(feature['coordinates'][0]).area
+    #         # Get area
+    #         area = Polygon(feature['coordinates'][0]).area
 
-            if area > min_area and (max_area is None or area < max_area):
-                lines.append(line)
-                c += 1
-                ids.append(i)
-            else:
-                skipped_fields += 1
+    #         if area > min_area and (max_area is None or area < max_area):
+    #             lines.append(line)
+    #             c += 1
+    #             ids.append(i)
+    #         else:
+    #             skipped_fields += 1
 
-            if nrows is not None and c >= nrows:
-                break
+    #         if nrows is not None and c >= nrows:
+    #             break
 
-        df = gpd.GeoDataFrame.from_features(lines, crs=fields_file.crs)
-        df.index = ids
-    print(f"Loaded {c} fields with area between {min_area} and {max_area} m2, skipped {skipped_fields} fields")
+    #     df = gpd.GeoDataFrame.from_features(lines, crs=fields_file.crs)
+    #     df.index = ids
+    # print(f"Loaded {c} fields with area between {min_area} and {max_area} m2, skipped {skipped_fields} fields")
 
     return df
 
@@ -290,7 +299,6 @@ def load_fields(field_path:str, nrows:int = None, min_area:int = 0, max_area:int
 def mask_field(field: Polygon, src: rasterio.DatasetReader):
     mask, transform = mask_func(src, [field], crop=True, nodata=0)
     return mask
-
         
 def get_field_csv_path(outdir:str, prefix:str, field_id:str):
         dirname = "LAI_field_ts"
@@ -302,7 +310,11 @@ def get_field_csv_path(outdir:str, prefix:str, field_id:str):
 
 def field_to_ts(field: Polygon, src: rasterio.DatasetReader):
     # Mask the array
-    mask_array = mask_field(field, src)
+    try:
+        mask_array = mask_field(field, src)
+    except Exception as e:
+        print(f"Error masking field: {e}")
+        return np.ones((src.count,)) * np.nan  # Return an array of nans if the mask fails
 
 #     Check if the mask is empty
     if mask_array.shape[0] == 0:
@@ -399,6 +411,13 @@ def lai_to_csv_field(eop_paths:list, fields_path:str, outpath:str, nfields:int =
                 # Make sure the fields are in the same coordinate system as the eopatch
                 if fields.crs != eop.bbox.crs:
                     fields = fields.to_crs(eop.bbox.crs.ogc_string())
+
+                # Filter the fields down to only those that intersect with the eopatch bbox
+                shapebox = box(*eop.bbox)
+                fields = fields[fields.intersects(shapebox)]
+                if len(fields) == 0:
+                    print(f"No fields intersect with eopatch {eop_path}, skipping")
+                    continue
 
                 # 1. Save the eopatches as tiff if necessary
                 print(f"1. Temporarily saving eopatch as tiff")

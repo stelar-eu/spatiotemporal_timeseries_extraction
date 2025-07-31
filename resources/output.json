@@ -1,18 +1,5 @@
 {
-    "message": "Time series data has been created successfully.",
-    "output": {
-        "field_timeseries": "s3://vista-bucket/Pilot_B/UCB2/30TYQ/TIMESERIES_EXTRACTION/docker_test.csv"
-    },
-    "metrics": {
-        "number_of_images": 8,
-        "image_width": 1128,
-        "image_height": 1128,
-        "total_runtime": 30.677700519561768,
-        "partial_runtimes": {
-            "files_unpacking": 16.63051152229309,
-            "eopatches_combining": 0.06665802001953125,
-            "field_level_timeseries_creation": 13.97831916809082
-        }
-    },
-    "status": "success"
+    "message": "'EOPatch' object has no attribute 'box'",
+    "error": "An error occurred during the image to time series conversion.",
+    "status": "failed"
 }
